@@ -1,0 +1,13 @@
+local:
+  logLevel: DEBUG
+  port: 3000
+  host: 127.0.0.1
+  e2e: false
+  postgresHost: localhost
+
+beta:
+  logLevel: INFO
+  port: 3000
+  host: 0.0.0.0
+  e2e: true
+  postgresHost: postgres

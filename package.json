@@ -1,0 +1,98 @@
+{
+  "name": "ems-device-api",
+  "version": "1.0.0-beta",
+  "engines": {
+    "node": ">=24"
+  },
+  "main": "dist/src/main.ts",
+  "scripts": {
+    "dev": "nest start --watch",
+    "build": "nest build",
+    "preview": "node dist/src/main.js",
+    "depcheck": "depcheck --ignores=@types/*,@typescript-eslint/*,globals,bun:test,@nestjs/*,@swc/*,ts-loader,ts-node,tsconfig-paths,source-map-support,swagger-ui-express",
+    "format": "prettier --write src tests",
+    "typecheck": "tsc --noEmit --incremental false; eslint -c eslint-typecheck.config.mjs src tests",
+    "audit-src": "eslint -c eslint-security.config.mjs src tests",
+    "audit-packages": "npm audit --audit-level=moderate --format=json | grep -qE '\"severity\":\\s*\"(moderate|high|critical)\"' && exit 1 || exit 0",
+    "lint": "eslint src tests --fix",
+    "security": "npm run audit-src && npm run audit-packages",
+    "checks": "npm run depcheck && npm run format && npm run typecheck && npm run security && npm run lint",
+    "unit": "node --require ts-node/register --require tsconfig-paths/register --test src/**/*.test.ts",
+    "integration": "node --require ts-node/register --require tsconfig-paths/register --test tests/*.test.ts",
+    "cover": "c8 npm run unit",
+    "test": "npm run unit && npm run integration",
+    "review": "claude 'run code-reviewer agent against diff for quality and elegance'",
+    "commit": "npm run checks && npm run test && npm run review && git add -A && git cz && git push"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.0.1",
+    "@nestjs/config": "^4.0.2",
+    "@nestjs/core": "^11.0.1",
+    "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/swagger": "^11.2.0",
+    "@nestjs/typeorm": "^11.0.0",
+    "axios": "^1.11.0",
+    "express": "^5.1.0",
+    "ip-address": "^10.0.1",
+    "nestjs-zod": "^5.0.0",
+    "pg": "^8.16.3",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "swagger-ui-express": "^5.0.1",
+    "ts-pattern": "^5.0.0",
+    "typeorm": "^0.3.26",
+    "winston": "^3.17.0",
+    "yaml": "^2.4.0",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.31.0",
+    "@nestjs/cli": "^11.0.0",
+    "@nestjs/schematics": "^11.0.0",
+    "@nestjs/testing": "^11.0.1",
+    "@swc/cli": "^0.8.1",
+    "@swc/core": "^1.10.7",
+    "@testcontainers/postgresql": "^11.5.1",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.1.0",
+    "@types/pg": "^8.15.5",
+    "@types/supertest": "^6.0.2",
+    "@typescript-eslint/eslint-plugin": "^8.38.0",
+    "@typescript-eslint/parser": "^8.38.0",
+    "c8": "^10.1.2",
+    "depcheck": "^1.4.7",
+    "eslint": "^9.31.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-jsdoc": "48.11.0",
+    "eslint-plugin-no-secrets": "^2.2.1",
+    "eslint-plugin-security": "^3.0.1",
+    "globals": "^15.0.0",
+    "nock": "^14.0.10",
+    "prettier": "^3.6.2",
+    "source-map-support": "^0.5.21",
+    "supertest": "^7.0.0",
+    "testcontainers": "^11.5.1",
+    "ts-loader": "^9.5.2",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "5.8.3",
+    "typescript-eslint": "^8.38.0"
+  },
+  "overrides": {
+    "dayjs": "1.11.20"
+  },
+  "c8": {
+    "include": [
+      "src/**/*.ts"
+    ],
+    "exclude": [
+      "**/*.test.ts"
+    ],
+    "reporter": [
+      "text",
+      "cobertura"
+    ],
+    "reports-dir": "coverage",
+    "clean": true
+  }
+}

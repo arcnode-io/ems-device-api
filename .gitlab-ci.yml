@@ -1,5 +1,30 @@
+
 stages:
+  - check
+  - publish
   - mirror
+
+check:
+  stage: check
+  script:
+    - npm ci
+    - npm run checks
+    - npm run cover
+    - npm run integration
+  coverage: '/All files\s*\|\s*\d+\.\d+\s*\|\s*\d+\.\d+\s*\|\s*\d+\.\d+\s*\|\s*(\d+\.\d+)/'
+  artifacts:
+    when: always
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage/cobertura-coverage.xml
+
+publish:
+    stage: publish
+    script:
+      - docker login -u admin -p $HARBOR_PASSWORD 173.211.12.43:8083
+      - docker build -t 173.211.12.43:8083/library/ems-device-api .
+      - docker push 173.211.12.43:8083/library/ems-device-api
 
 mirror:
   stage: mirror
