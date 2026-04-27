@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import * as yaml from "yaml";
 import { TopologyService } from "../topology/topology.service";
+import { ClassService } from "../classes/class.service";
 import { buildSpec } from "./spec-generator";
 
 const ASYNCAPI_REACT_VERSION = "1.4.18";
@@ -13,19 +14,25 @@ const ASYNCAPI_REACT_VERSION = "1.4.18";
 @Injectable()
 export class AsyncapiService {
   /**
-   * Wires the TopologyService dependency.
+   * Wires the persistence + class catalog dependencies.
    * @param topology Source of the persisted DTM
+   * @param classes Catalog of device class definitions used for channel expansion
    */
-  constructor(private readonly topology: TopologyService) {}
+  constructor(
+    private readonly topology: TopologyService,
+    private readonly classes: ClassService,
+  ) {}
 
   /**
-   * Build the spec object from the latest persisted DTM.
+   * Build the spec object from the latest persisted DTM, expanding channels
+   * per class catalog entry where available.
    * @returns The AsyncAPI 3.0.0 spec, or null if no DTM has been submitted yet.
    */
   async generateSpec(): Promise<Record<string, unknown> | null> {
     const dtm = await this.topology.getLatest();
     if (!dtm) return null;
-    return buildSpec(dtm) as unknown as Record<string, unknown>;
+    const spec = buildSpec(dtm, (ref) => this.classes.get(ref));
+    return spec as unknown as Record<string, unknown>;
   }
 
   /**

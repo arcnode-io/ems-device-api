@@ -8,6 +8,9 @@ import * as client from "supertest";
 import { App } from "supertest/types";
 import * as assert from "assert";
 import * as yaml from "yaml";
+import { Parser } from "@asyncapi/parser";
+
+const DIAGNOSTIC_SEVERITY_ERROR = 0;
 import { describe, test } from "node:test";
 import { AppModuleWithDatabase } from "../src/app.module";
 import { startPostgres } from "./fixtures/containers";
@@ -153,6 +156,34 @@ describe("AsyncAPI", () => {
       // Loads the AsyncAPI viewer (web component or hand-rolled — at minimum
       // mentions 'asyncapi' in the markup)
       assert.match(res.text.toLowerCase(), /asyncapi/);
+    } finally {
+      await app.close();
+      await pg.stop();
+    }
+  });
+
+  test("Generated spec validates against the AsyncAPI 3.0.0 schema", async () => {
+    const { app, pg } = await bootstrap();
+    try {
+      await client(app.getHttpServer()).post("/topology").send(SAMPLE_DTM);
+      const res = await client(app.getHttpServer()).get("/asyncapi");
+      assert.strictEqual(res.status, 200);
+
+      // The official AsyncAPI parser is the authoritative validator —
+      // catches drift between our hand-rolled generator and the spec.
+      const parser = new Parser();
+      const { document, diagnostics } = await parser.parse(
+        JSON.stringify(res.body),
+      );
+      const errors = diagnostics.filter(
+        (diag) => Number(diag.severity) === DIAGNOSTIC_SEVERITY_ERROR,
+      );
+      assert.deepStrictEqual(
+        errors,
+        [],
+        `parser flagged errors: ${JSON.stringify(errors, null, 2)}`,
+      );
+      assert.ok(document, "parser returned no document");
     } finally {
       await app.close();
       await pg.stop();

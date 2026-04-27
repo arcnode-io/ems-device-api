@@ -13,6 +13,7 @@ COPY package* .
 RUN npm ci --only=production
 COPY --from=builder /app/dist ./dist
 COPY cfg.yml .
+COPY device_classes ./device_classes
 CMD [ "node", "dist/main"]
 
 
