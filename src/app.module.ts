@@ -7,6 +7,7 @@ import { AppController } from "./app.controller";
 import { ExampleModule } from "./example/example.module";
 import { loadConfig } from "./config";
 import { CallApiModule } from "./call-api/call-api.module";
+import { TopologyModule } from "./topology/topology.module";
 
 /**
  * Main application module without database dependencies for basic tests
@@ -41,6 +42,7 @@ export class AppModule {}
     }),
     ExampleModule,
     CallApiModule,
+    TopologyModule,
   ],
   controllers: [AppController],
   providers: [
