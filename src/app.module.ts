@@ -8,6 +8,7 @@ import { ExampleModule } from "./example/example.module";
 import { loadConfig } from "./config";
 import { CallApiModule } from "./call-api/call-api.module";
 import { TopologyModule } from "./topology/topology.module";
+import { AsyncapiModule } from "./asyncapi/asyncapi.module";
 
 /**
  * Main application module without database dependencies for basic tests
@@ -43,6 +44,7 @@ export class AppModule {}
     ExampleModule,
     CallApiModule,
     TopologyModule,
+    AsyncapiModule,
   ],
   controllers: [AppController],
   providers: [

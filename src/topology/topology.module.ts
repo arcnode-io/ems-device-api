@@ -9,5 +9,6 @@ import { TopologyController } from "./topology.controller";
   imports: [TypeOrmModule.forFeature([Topology])],
   controllers: [TopologyController],
   providers: [TopologyService],
+  exports: [TopologyService],
 })
 export class TopologyModule {}
