@@ -16,6 +16,13 @@ import * as assert from "assert";
 import { describe, test } from "node:test";
 import { AppModuleWithDatabase } from "../src/app.module";
 import { startPostgres } from "./fixtures/containers";
+import {
+  BESS_MODULE_V1,
+  BESS_RACK_V1,
+  BESS_BMS_V1,
+  BESS_INVERTER_V1,
+  BESS_CELL_V1,
+} from "./fixtures/templates";
 
 const MEGAPACK_DTM = {
   dtm_version: "1.0",
@@ -28,29 +35,29 @@ const MEGAPACK_DTM = {
     T_coolant_setpoint_C: 18.0,
   },
   devices: {
-    megapack_01: { class: "bess_module.v1", display_name: "Megapack 01" },
+    megapack_01: { template: "bess_module.v1", display_name: "Megapack 01" },
     rack_01: {
-      class: "bess_rack.v1",
+      template: "bess_rack.v1",
       parent: "megapack_01",
       display_name: "Rack 01",
     },
     bms_01: {
-      class: "bess_bms.v1",
+      template: "bess_bms.v1",
       parent: "rack_01",
       display_name: "BMS 01",
     },
     inverter_01: {
-      class: "bess_inverter.v1",
+      template: "bess_inverter.v1",
       parent: "rack_01",
       display_name: "Inverter 01",
     },
     cell_001: {
-      class: "bess_cell.v1",
+      template: "bess_cell.v1",
       parent: "rack_01",
       display_name: "Cell 001",
     },
     cell_002: {
-      class: "bess_cell.v1",
+      template: "bess_cell.v1",
       parent: "rack_01",
       display_name: "Cell 002",
     },
@@ -67,6 +74,13 @@ const MEGAPACK_DTM = {
       ],
     },
   ],
+  templates_used: {
+    "bess_module.v1": BESS_MODULE_V1,
+    "bess_rack.v1": BESS_RACK_V1,
+    "bess_bms.v1": BESS_BMS_V1,
+    "bess_inverter.v1": BESS_INVERTER_V1,
+    "bess_cell.v1": BESS_CELL_V1,
+  },
 };
 
 interface AsyncApiSpec {

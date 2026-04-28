@@ -1,10 +1,10 @@
 /**
- * Integration test — class catalog projects into x-protocol-source and
- * x-enum-values extensions on the spec.
+ * Integration test — embedded `templates_used` projects into x-protocol-source
+ * and x-enum-values extensions on the spec.
  *
- * The DTM-instance side (which devices, which classes) drives x-protocol-source.
- * The class-catalog side (vocabulary across all loaded classes) drives
- * x-enum-values. Channel templates themselves are class-agnostic.
+ * The DTM-instance side (which devices, which templates) drives
+ * x-protocol-source. The template vocabulary in `templates_used` drives
+ * x-enum-values. Channel templates themselves are template-agnostic.
  */
 
 import "reflect-metadata";
@@ -17,6 +17,7 @@ import * as assert from "assert";
 import { describe, test } from "node:test";
 import { AppModuleWithDatabase } from "../src/app.module";
 import { startPostgres } from "./fixtures/containers";
+import { BESS_MODULE_V1 } from "./fixtures/templates";
 
 const DTM_WITH_BESS = {
   dtm_version: "1.0",
@@ -29,9 +30,12 @@ const DTM_WITH_BESS = {
     T_coolant_setpoint_C: 18.0,
   },
   devices: {
-    bess_001: { class: "bess_module.v1", display_name: "BESS-001" },
+    bess_001: { template: "bess_module.v1", display_name: "BESS-001" },
   },
   buses: [{ id: "dc_bus", type: "dc", members: [{ device_id: "bess_001" }] }],
+  templates_used: {
+    "bess_module.v1": BESS_MODULE_V1,
+  },
 };
 
 interface AsyncApiSpec {
@@ -39,8 +43,8 @@ interface AsyncApiSpec {
   "x-enum-values"?: Record<string, readonly string[]>;
 }
 
-describe("AsyncAPI class projection", () => {
-  test("DTM device with bess_module.v1 class projects into x-protocol-source", async () => {
+describe("AsyncAPI template projection", () => {
+  test("DTM device with bess_module.v1 template projects into x-protocol-source", async () => {
     const password = process.env.POSTGRES_PASSWORD;
     if (!password) throw new Error("POSTGRES_PASSWORD not set");
     const pg = await startPostgres(password);

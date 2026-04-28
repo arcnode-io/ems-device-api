@@ -6,14 +6,14 @@
  * four sample schemas under components, top-level x-protocol-source map
  * for gateway codegen, and x-enum-values for HMI typed-union codegen.
  *
- * Channels and components are class-agnostic at the spec level — per-device
- * variability lives entirely in the x-* extensions, keeping the channel
- * count constant regardless of deployment size.
+ * Channels and components are template-agnostic at the spec level —
+ * per-device variability lives entirely in the x-* extensions, keeping the
+ * channel count constant regardless of deployment size. Per-template enum
+ * vocabulary is derived from `dtm.templates_used`, which the DTM author
+ * (`edp-api`) embeds in the payload.
  */
 
 import type { DtmType } from "../topology/dtm.schema";
-import type { DeviceClassType } from "../classes/class.schema";
-import type { ClassLookup } from "./types";
 import { buildComponents } from "./spec-components";
 import { buildChannels, buildOperations } from "./spec-channels";
 import {
@@ -63,21 +63,15 @@ interface AsyncApi3Spec {
   "x-enum-values": EnumValuesMap;
 }
 
-export type { ClassLookup } from "./types";
-
 /**
- * Build the full AsyncAPI v3 spec from the persisted DTM and class catalog.
- * @param dtm Validated Device Topology Manifest (latest persisted)
- * @param lookup Resolves a class ref like `bess_module.v1` to its definition
- * @param classes All loaded classes — used for enum-vocabulary projection
- *                regardless of whether the DTM currently references them
+ * Build the full AsyncAPI v3 spec from the self-describing persisted DTM.
+ * @param dtm Validated Device Topology Manifest (latest persisted) — its
+ *            `templates_used` map provides every template referenced by
+ *            `devices`, removing the need for a separate catalog lookup.
  * @returns The AsyncAPI 3.0.0 spec ready for JSON / YAML serialization
  */
-export function buildSpec(
-  dtm: DtmType,
-  lookup: ClassLookup,
-  classes: readonly DeviceClassType[],
-): AsyncApi3Spec {
+export function buildSpec(dtm: DtmType): AsyncApi3Spec {
+  const templates = Object.values(dtm.templates_used);
   return {
     asyncapi: SPEC_VERSION,
     info: {
@@ -88,8 +82,8 @@ export function buildSpec(
     servers: DEFAULT_SERVERS,
     channels: buildChannels(),
     operations: buildOperations(),
-    components: buildComponents(classes),
-    "x-protocol-source": buildProtocolSourceMap(dtm, lookup),
-    "x-enum-values": buildEnumValuesMap(classes),
+    components: buildComponents(templates),
+    "x-protocol-source": buildProtocolSourceMap(dtm),
+    "x-enum-values": buildEnumValuesMap(templates),
   };
 }

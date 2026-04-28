@@ -14,6 +14,7 @@ const DIAGNOSTIC_SEVERITY_ERROR = 0;
 import { describe, test } from "node:test";
 import { AppModuleWithDatabase } from "../src/app.module";
 import { startPostgres } from "./fixtures/containers";
+import { BESS_MODULE_V1, COMPUTE_MODULE_V1 } from "./fixtures/templates";
 
 const SAMPLE_DTM = {
   dtm_version: "1.0",
@@ -27,11 +28,11 @@ const SAMPLE_DTM = {
   },
   devices: {
     bess_001: {
-      class: "bess_module.v1",
+      template: "bess_module.v1",
       display_name: "BESS-001",
     },
     compute_001: {
-      class: "compute_module.nvidia_dgx_h100",
+      template: "compute_module.v1",
       display_name: "COMPUTE-001",
     },
   },
@@ -42,6 +43,10 @@ const SAMPLE_DTM = {
       members: [{ device_id: "bess_001" }, { device_id: "compute_001" }],
     },
   ],
+  templates_used: {
+    "bess_module.v1": BESS_MODULE_V1,
+    "compute_module.v1": COMPUTE_MODULE_V1,
+  },
 };
 
 interface AsyncApiSpec {

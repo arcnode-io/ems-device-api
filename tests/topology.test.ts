@@ -11,6 +11,23 @@ import { describe, test } from "node:test";
 import { AppModuleWithDatabase } from "../src/app.module";
 import { startPostgres } from "./fixtures/containers";
 
+// Minimal templates for round-trip — must satisfy the DeviceTemplate schema
+// (`template`, `version`, at least one of measurements/commands).
+const TEMPLATE_BESS = {
+  template: "bess_module",
+  version: "v1",
+  measurements: {
+    voltage_dc: { unit: "volts", type: "float" as const },
+  },
+};
+const TEMPLATE_COMPUTE = {
+  template: "compute_module",
+  version: "v1",
+  measurements: {
+    total_power_draw: { unit: "watts", type: "float" as const },
+  },
+};
+
 // Mirror of edp-api's Dtm Pydantic shape (src/generators/dtm_models.py).
 const SAMPLE_DTM = {
   dtm_version: "1.0",
@@ -24,11 +41,11 @@ const SAMPLE_DTM = {
   },
   devices: {
     bess_001: {
-      class: "bess_module.tesla_megapack_xl",
+      template: "bess_module.v1",
       display_name: "BESS-001",
     },
     compute_001: {
-      class: "compute_module.nvidia_dgx_h100",
+      template: "compute_module.v1",
       display_name: "COMPUTE-001",
       parent: "bess_001",
     },
@@ -40,6 +57,10 @@ const SAMPLE_DTM = {
       members: [{ device_id: "bess_001" }, { device_id: "compute_001" }],
     },
   ],
+  templates_used: {
+    "bess_module.v1": TEMPLATE_BESS,
+    "compute_module.v1": TEMPLATE_COMPUTE,
+  },
 };
 
 describe("Topology", () => {

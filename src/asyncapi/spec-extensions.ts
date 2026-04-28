@@ -6,41 +6,37 @@
  *   translate raw protocol values to engineering units. Lives at top level
  *   (not per-channel) because channels are templated and bindings are
  *   per-instance.
- * - `x-enum-values` — keyed by `${class}.${version}.${measurement}`, lists
- *   the allowed string labels for enum measurements/commands. Class-scoped
- *   (not per-instance) because enum vocabulary is a class-level contract.
+ * - `x-enum-values` — keyed by `${template}.${version}.${measurement}`,
+ *   lists the allowed string labels for enum measurements. Template-scoped
+ *   (not per-instance) because enum vocabulary is a template-level contract.
  *
- * Per ADR-002 §4, the `protocol_binding_template` block on each class YAML
- * is the canonical source. Extensions here just project it into spec shape.
+ * Per ADR-002 §4, the `protocol_binding_template` block on each template YAML
+ * is the canonical source. Extensions here project it from the DTM's
+ * self-describing `templates_used` map.
  */
 
 import type { DtmType } from "../topology/dtm.schema";
-import type { DeviceClassType } from "../classes/class.schema";
-import type { ClassLookup } from "./types";
+import type { DeviceTemplateType } from "../templates/template.schema";
 
 /** Per-device, per-channel protocol source map. */
 export type ProtocolSourceMap = Record<string, Record<string, unknown>>;
 
-/** Per-class enum vocabulary map. */
+/** Per-template enum vocabulary map. */
 export type EnumValuesMap = Record<string, readonly string[]>;
 
 /**
- * Walk every device in the DTM, look up its class, and project the class's
- * `protocol_binding_template.register_map` entries into a per-device,
- * per-channel-name map.
- * @param dtm The deployment manifest
- * @param lookup Resolve class refs to their definitions
+ * Walk every device in the DTM, look up its template in `templates_used`,
+ * and project the `protocol_binding_template.register_map` entries into a
+ * per-device, per-channel-name map.
+ * @param dtm The self-describing deployment manifest
  * @returns Map keyed by `device_id` -> `measurement_or_command_name` -> binding
  */
-export function buildProtocolSourceMap(
-  dtm: DtmType,
-  lookup: ClassLookup,
-): ProtocolSourceMap {
+export function buildProtocolSourceMap(dtm: DtmType): ProtocolSourceMap {
   const out: ProtocolSourceMap = {};
   for (const [deviceId, device] of Object.entries(dtm.devices)) {
-    const cls = lookup(device.class);
-    if (!cls) continue;
-    const template = (cls as Record<string, unknown>).protocol_binding_template;
+    const tpl = dtm.templates_used[device.template];
+    if (!tpl) continue;
+    const template = (tpl as Record<string, unknown>).protocol_binding_template;
     if (!isProtocolBindingTemplate(template)) continue;
     const entries = projectBindings(template);
     if (Object.keys(entries).length > 0) out[deviceId] = entries;
@@ -49,24 +45,52 @@ export function buildProtocolSourceMap(
 }
 
 /**
- * Walk every loaded class, project enum-typed measurements + commands into
- * a flat map of `${class}.${version}.${name} -> [labels]`.
- * @param classes All loaded device classes
- * @returns Map of class+name keys to their allowed string labels
+ * Walk every template in the DTM's `templates_used` map, project enum-typed
+ * measurements into a flat map of `${template}.${version}.${name} -> [labels]`.
+ *
+ * Labels are ordered by their declared `register_value` (the integer the
+ * device puts on the wire), giving a deterministic order independent of YAML
+ * insertion order and Postgres jsonb's key-length-then-alpha storage order.
+ * @param templates All templates referenced by this deployment
+ * @returns Map of template+name keys to their allowed string labels
  */
 export function buildEnumValuesMap(
-  classes: readonly DeviceClassType[],
+  templates: readonly DeviceTemplateType[],
 ): EnumValuesMap {
   const out: Record<string, readonly string[]> = {};
-  for (const cls of classes) {
-    const key = `${cls.class}.${cls.version}`;
-    for (const [name, meas] of Object.entries(cls.measurements ?? {})) {
+  for (const tpl of templates) {
+    const key = `${tpl.template}.${tpl.version}`;
+    for (const [name, meas] of Object.entries(tpl.measurements ?? {})) {
       if (meas.type === "enum" && meas.values) {
-        out[`${key}.${name}`] = Object.keys(meas.values);
+        out[`${key}.${name}`] = orderedEnumLabels(meas.values);
       }
     }
   }
   return out;
+}
+
+/**
+ * Sort enum labels by `register_value` ascending. Entries without a
+ * `register_value` (mqtt_native, redfish bindings) fall back to alphabetical.
+ * @param values The `values:` map from a class enum measurement
+ * @returns Label keys in deterministic protocol order
+ */
+function orderedEnumLabels(values: Record<string, unknown>): readonly string[] {
+  return Object.entries(values)
+    .map(([label, def]) => ({
+      label,
+      regValue:
+        (def as { register_value?: number }).register_value ?? Number.NaN,
+    }))
+    .sort((labelA, labelB) => {
+      if (Number.isNaN(labelA.regValue) && Number.isNaN(labelB.regValue)) {
+        return labelA.label.localeCompare(labelB.label);
+      }
+      if (Number.isNaN(labelA.regValue)) return 1;
+      if (Number.isNaN(labelB.regValue)) return -1;
+      return labelA.regValue - labelB.regValue;
+    })
+    .map(({ label }) => label);
 }
 
 interface ProtocolBindingTemplate {
@@ -75,8 +99,8 @@ interface ProtocolBindingTemplate {
 }
 
 /**
- * Type-narrow an unknown class extra-field to the template shape we care about.
- * @param value Candidate `protocol_binding_template` block from a class YAML
+ * Type-narrow an unknown template extra-field to the binding shape we project.
+ * @param value Candidate `protocol_binding_template` block from a template YAML
  * @returns True if the value matches the binding-template shape we project
  */
 function isProtocolBindingTemplate(
@@ -91,7 +115,7 @@ function isProtocolBindingTemplate(
 }
 
 /**
- * Flatten a class's register_map into per-channel binding entries.
+ * Flatten a template's register_map into per-channel binding entries.
  * @param template Validated protocol_binding_template block
  * @returns Map of channel name -> protocol-source binding fields
  */

@@ -3,9 +3,14 @@
  *
  * Mirror of `edp-api/src/generators/dtm_models.py` (Pydantic). edp-api emits;
  * device-api receives. Drift between the two ⇒ POST /topology rejects with 400.
+ *
+ * Per ADR-002 §7, the DTM is self-describing: every template referenced by
+ * `devices[*].template` appears verbatim under `templates_used`, so the
+ * spec generator never reads from disk.
  */
 
 import { z } from "zod";
+import { DeviceTemplate } from "../templates/template.schema";
 
 export const DeviceConnection = z.object({
   host: z.string().optional(),
@@ -14,7 +19,7 @@ export const DeviceConnection = z.object({
 });
 
 export const DtmDevice = z.object({
-  class: z.string(),
+  template: z.string(),
   display_name: z.string().optional(),
   parent: z.string().optional(),
   connection: DeviceConnection.optional(),
@@ -47,6 +52,7 @@ export const Dtm = z.object({
   sizing_params: SizingParams,
   devices: z.record(z.string(), DtmDevice),
   buses: z.array(Bus),
+  templates_used: z.record(z.string(), DeviceTemplate),
 });
 
 export type DtmType = z.infer<typeof Dtm>;

@@ -1,9 +1,9 @@
 /**
- * Zod schemas for the device class catalog.
+ * Zod schemas for device templates.
  *
- * Mirror of the schema documented in `arcnode/device_classes/readme.md`.
+ * Mirror of the schema documented in `arcnode/device_templates/readme.md`.
  * MVP scope: validates the bits the AsyncAPI generator actually consumes
- * (class, version, measurements, commands). Other fields pass through
+ * (template, version, measurements, commands). Other fields pass through
  * untouched until a feature needs them.
  */
 
@@ -26,23 +26,24 @@ export const Command = z.object({
   display_name_default: z.string().optional(),
 });
 
-export const DeviceClass = z
+export const DeviceTemplate = z
   .object({
-    class: z.string(),
+    template: z.string(),
     version: z.string().regex(/^v\d+$/, 'version must match "vN"'),
     measurements: z.record(z.string(), Measurement).optional(),
     commands: z.record(z.string(), Command).optional(),
   })
   .passthrough()
   .refine(
-    (cls) =>
-      Object.keys(cls.measurements ?? {}).length > 0 ||
-      Object.keys(cls.commands ?? {}).length > 0,
+    (tpl) =>
+      Object.keys(tpl.measurements ?? {}).length > 0 ||
+      Object.keys(tpl.commands ?? {}).length > 0,
     {
-      message: "class must declare at least one of measurements: or commands:",
+      message:
+        "template must declare at least one of measurements: or commands:",
     },
   );
 
-export type DeviceClassType = z.infer<typeof DeviceClass>;
+export type DeviceTemplateType = z.infer<typeof DeviceTemplate>;
 export type MeasurementType = z.infer<typeof Measurement>;
 export type CommandType = z.infer<typeof Command>;

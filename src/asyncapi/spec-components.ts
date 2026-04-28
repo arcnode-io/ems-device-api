@@ -7,7 +7,7 @@
  * gateway and HMI can't drift.
  */
 
-import type { DeviceClassType } from "../classes/class.schema";
+import type { DeviceTemplateType } from "../templates/template.schema";
 
 const TS_FORMAT = "date-time";
 
@@ -107,15 +107,15 @@ function msg(
 /**
  * Build the AsyncAPI components block — schemas (5 payload shapes +
  * ProtocolSource) and messages (4 wrappers + topology event).
- * @param classes Catalog entries used (currently for future tags / per-class
- *                schema injection — schemas are class-agnostic at MVP).
+ * @param templates Catalog entries used (reserved for future per-template
+ *                  schema injection — schemas are template-agnostic at MVP).
  * @returns The fully populated components object.
  */
-export function buildComponents(classes: readonly DeviceClassType[]): {
+export function buildComponents(templates: readonly DeviceTemplateType[]): {
   messages: Record<string, unknown>;
   schemas: Record<string, unknown>;
 } {
-  void classes; // reserved for future per-class schema variants
+  void templates; // reserved for future per-template schema variants
   return {
     messages: {
       FloatSampleMsg: msg("FloatSampleMsg", "FloatSample"),

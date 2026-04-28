@@ -1,12 +1,11 @@
 import { Module } from "@nestjs/common";
 import { TopologyModule } from "../topology/topology.module";
-import { ClassModule } from "../classes/class.module";
 import { AsyncapiService } from "./asyncapi.service";
 import { AsyncapiController } from "./asyncapi.controller";
 
-/** AsyncAPI module — generates + serves spec from the persisted DTM + class catalog. */
+/** AsyncAPI module — generates + serves spec from the self-describing persisted DTM. */
 @Module({
-  imports: [TopologyModule, ClassModule],
+  imports: [TopologyModule],
   controllers: [AsyncapiController],
   providers: [AsyncapiService],
 })
