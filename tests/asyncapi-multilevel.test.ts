@@ -1,9 +1,11 @@
 /**
- * Integration test — Megapack-shaped 3-level DTM (module -> rack -> cell)
+ * Integration test — 3-level BESS-shaped DTM (module -> rack -> equipment)
  * projects into x-protocol-source at every level.
  *
  * Validates the ADR-002 §7 amendment: parent-chain trees are arbitrary depth,
  * topic addressing stays flat, every level can declare its own measurements.
+ * The same shape applies to compute (cluster -> chassis -> server -> GPU)
+ * and thermal (plant -> chiller -> pump/CRAH/sensor) hierarchies.
  */
 
 import "reflect-metadata";
@@ -24,9 +26,9 @@ import {
   BESS_CELL_V1,
 } from "./fixtures/templates";
 
-const MEGAPACK_DTM = {
+const MULTILEVEL_BESS_DTM = {
   dtm_version: "1.0",
-  deployment_uuid: "megapack-test-001",
+  deployment_uuid: "multilevel-bess-test-001",
   generated_at: "2026-04-27T00:00:00Z",
   sizing_ref: "sizing-mp-001",
   sizing_params: {
@@ -35,10 +37,10 @@ const MEGAPACK_DTM = {
     T_coolant_setpoint_C: 18.0,
   },
   devices: {
-    megapack_01: { template: "bess_module.v1", display_name: "Megapack 01" },
+    bess_module_01: { template: "bess_module.v1", display_name: "BESS Module 01" },
     rack_01: {
       template: "bess_rack.v1",
-      parent: "megapack_01",
+      parent: "bess_module_01",
       display_name: "Rack 01",
     },
     bms_01: {
@@ -88,7 +90,7 @@ interface AsyncApiSpec {
   "x-enum-values"?: Record<string, readonly string[]>;
 }
 
-describe("AsyncAPI multi-level (Megapack-shaped)", () => {
+describe("AsyncAPI multi-level (BESS-shaped)", () => {
   test("3-level DTM projects into x-protocol-source at every level", async () => {
     const password = process.env.POSTGRES_PASSWORD;
     if (!password) throw new Error("POSTGRES_PASSWORD not set");
@@ -112,7 +114,7 @@ describe("AsyncAPI multi-level (Megapack-shaped)", () => {
     try {
       const post = await client(app.getHttpServer())
         .post("/topology")
-        .send(MEGAPACK_DTM);
+        .send(MULTILEVEL_BESS_DTM);
       assert.strictEqual(post.status, 201);
 
       const res = await client(app.getHttpServer()).get("/asyncapi");
@@ -124,7 +126,7 @@ describe("AsyncAPI multi-level (Megapack-shaped)", () => {
 
       // Module level
       assert.ok(
-        sources["megapack_01"]?.voltage_dc,
+        sources["bess_module_01"]?.voltage_dc,
         "module voltage_dc binding absent",
       );
 
