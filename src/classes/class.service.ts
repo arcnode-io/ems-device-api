@@ -47,6 +47,16 @@ export class ClassService implements OnModuleInit {
   }
 
   /**
+   * Return every class loaded into the catalog. Used by the AsyncAPI spec
+   * generator to project enum vocabularies and tags across all classes,
+   * not just the ones referenced by a particular DTM.
+   * @returns Read-only snapshot of all loaded class definitions.
+   */
+  all(): readonly DeviceClassType[] {
+    return Array.from(this.catalog.values());
+  }
+
+  /**
    * Recursively walk a directory, returning every `*.yaml` path.
    * @param dir Directory to walk
    * @returns Absolute paths to YAML files.

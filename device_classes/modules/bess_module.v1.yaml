@@ -5,11 +5,8 @@ iec_61850:
   logical_nodes: [ZBAT, ZGEN, MMXU, CSWI]
 
 contains:
-  required:
-    - { class: bess_bms.v1,      count: 1 }
-    - { class: bess_inverter.v1, count: 1 }
   scalable:
-    - { class: bess_cell.v1, count_min: 1, count_max: 256 }
+    - { class: bess_rack.v1, count_min: 1, count_max: 24 }
 
 measurements:
   voltage_dc:

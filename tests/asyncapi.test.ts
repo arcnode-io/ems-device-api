@@ -27,7 +27,7 @@ const SAMPLE_DTM = {
   },
   devices: {
     bess_001: {
-      class: "bess_module.tesla_megapack_xl",
+      class: "bess_module.v1",
       display_name: "BESS-001",
     },
     compute_001: {
@@ -47,11 +47,20 @@ const SAMPLE_DTM = {
 interface AsyncApiSpec {
   asyncapi: string;
   info: { title: string; version: string };
-  channels: Record<string, { address: string }>;
+  channels: Record<
+    string,
+    { address: string; parameters?: Record<string, unknown> }
+  >;
+  operations: Record<
+    string,
+    { action: string; bindings?: Record<string, unknown>; channel: unknown }
+  >;
   components: {
     messages: Record<string, unknown>;
     schemas: Record<string, unknown>;
   };
+  "x-protocol-source"?: Record<string, Record<string, unknown>>;
+  "x-enum-values"?: Record<string, readonly string[]>;
 }
 
 /**
@@ -84,39 +93,68 @@ async function bootstrap(): Promise<{
 }
 
 describe("AsyncAPI", () => {
-  test("GET /asyncapi returns AsyncAPI 3.0.0 JSON with a channel per device", async () => {
+  test("GET /asyncapi returns 3.0.0 JSON with templated channels and components", async () => {
     const { app, pg } = await bootstrap();
     try {
-      // Arrange — persist a DTM
       const post = await client(app.getHttpServer())
         .post("/topology")
         .send(SAMPLE_DTM);
       assert.strictEqual(post.status, 201);
 
-      // Act
       const res = await client(app.getHttpServer()).get("/asyncapi");
 
-      // Assert — top-level shape + per-device channels
       assert.strictEqual(res.status, 200);
       assert.match(res.headers["content-type"] ?? "", /application\/json/);
       const spec = res.body as AsyncApiSpec;
       assert.strictEqual(spec.asyncapi, "3.0.0");
       assert.ok(spec.info.title.length > 0);
-      // Each device gets at least one channel; topic per ADR-002 includes device id.
-      assert.ok(
-        Object.values(spec.channels).some((ch) =>
-          ch.address.includes("bess_001"),
-        ),
-        "no channel for bess_001",
+
+      // Templated channels — one per (family × wire-type), addresses contain {param}s
+      for (const key of [
+        "measurementFloat",
+        "measurementBool",
+        "measurementEnum",
+        "commandFloat",
+        "commandBool",
+        "commandEnum",
+        "commandTrigger",
+        "topologyChanged",
+      ]) {
+        assert.ok(spec.channels[key], `missing channel template ${key}`);
+      }
+      const floatChannel = spec.channels["measurementFloat"];
+      assert.ok(floatChannel, "measurementFloat channel missing");
+      assert.match(
+        floatChannel.address,
+        /\{site_id\}.*\{device_id\}.*\{measurement\}.*\{unit\}/,
       );
-      assert.ok(
-        Object.values(spec.channels).some((ch) =>
-          ch.address.includes("compute_001"),
-        ),
-        "no channel for compute_001",
-      );
-      // Reading schema is registered in components
-      assert.ok(spec.components.schemas["Reading"], "missing Reading schema");
+      assert.ok(floatChannel.parameters);
+
+      // Components — 4 sample schemas + 4 messages + topology + ProtocolSource schema
+      for (const msgName of [
+        "FloatSampleMsg",
+        "BooleanSampleMsg",
+        "EnumSampleMsg",
+        "TriggerSampleMsg",
+        "TopologyChangedMsg",
+      ]) {
+        assert.ok(
+          spec.components.messages[msgName],
+          `missing message ${msgName}`,
+        );
+      }
+      for (const schemaName of [
+        "FloatSample",
+        "BooleanSample",
+        "EnumSample",
+        "TriggerSample",
+        "ProtocolSource",
+      ]) {
+        assert.ok(
+          spec.components.schemas[schemaName],
+          `missing schema ${schemaName}`,
+        );
+      }
     } finally {
       await app.close();
       await pg.stop();
@@ -131,7 +169,6 @@ describe("AsyncAPI", () => {
       const res = await client(app.getHttpServer()).get("/asyncapi/yaml");
       assert.strictEqual(res.status, 200);
       assert.match(res.headers["content-type"] ?? "", /yaml/);
-      // body is bytes; supertest puts it in res.text for non-JSON content-types
       const parsed = yaml.parse(res.text) as AsyncApiSpec;
       assert.strictEqual(parsed.asyncapi, "3.0.0");
     } finally {
@@ -148,13 +185,10 @@ describe("AsyncAPI", () => {
       const res = await client(app.getHttpServer()).get("/asyncapi/docs");
       assert.strictEqual(res.status, 200);
       assert.match(res.headers["content-type"] ?? "", /text\/html/);
-      // Page mentions our deployment_uuid (came from the rendered spec)
       assert.ok(
         res.text.includes("test-deployment-001"),
         "deployment_uuid not in rendered HTML",
       );
-      // Loads the AsyncAPI viewer (web component or hand-rolled — at minimum
-      // mentions 'asyncapi' in the markup)
       assert.match(res.text.toLowerCase(), /asyncapi/);
     } finally {
       await app.close();
@@ -169,8 +203,6 @@ describe("AsyncAPI", () => {
       const res = await client(app.getHttpServer()).get("/asyncapi");
       assert.strictEqual(res.status, 200);
 
-      // The official AsyncAPI parser is the authoritative validator —
-      // catches drift between our hand-rolled generator and the spec.
       const parser = new Parser();
       const { document, diagnostics } = await parser.parse(
         JSON.stringify(res.body),
@@ -195,6 +227,41 @@ describe("AsyncAPI", () => {
     try {
       const res = await client(app.getHttpServer()).get("/asyncapi");
       assert.strictEqual(res.status, 404);
+    } finally {
+      await app.close();
+      await pg.stop();
+    }
+  });
+
+  test("Operations carry MQTT bindings per family (ADR-002 §11)", async () => {
+    const { app, pg } = await bootstrap();
+    try {
+      await client(app.getHttpServer()).post("/topology").send(SAMPLE_DTM);
+      const res = await client(app.getHttpServer()).get("/asyncapi");
+      const spec = res.body as AsyncApiSpec;
+
+      const measOp = spec.operations["publishMeasurementFloat"];
+      assert.ok(measOp, "publishMeasurementFloat operation missing");
+      const measBindings = (
+        measOp.bindings as { mqtt: Record<string, unknown> }
+      ).mqtt;
+      assert.strictEqual(measBindings.qos, 0);
+      assert.strictEqual(measBindings.retain, true);
+      assert.strictEqual(measBindings.bindingVersion, "0.2.0");
+
+      const cmdOp = spec.operations["receiveCommandFloat"];
+      assert.ok(cmdOp, "receiveCommandFloat operation missing");
+      const cmdBindings = (cmdOp.bindings as { mqtt: Record<string, unknown> })
+        .mqtt;
+      assert.strictEqual(cmdBindings.qos, 1);
+      assert.strictEqual(cmdBindings.retain, false);
+
+      // In AsyncAPI 3.0 the operation key IS the identifier.
+      for (const [key, op] of Object.entries(spec.operations)) {
+        assert.ok(key.length > 0, "operation has empty key");
+        assert.ok(op.action, "operation missing action");
+        assert.ok(op.channel, "operation missing channel ref");
+      }
     } finally {
       await app.close();
       await pg.stop();

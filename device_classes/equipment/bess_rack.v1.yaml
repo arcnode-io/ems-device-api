@@ -1,0 +1,40 @@
+class: bess_rack
+version: v1
+
+iec_61850:
+  logical_nodes: [ZBAT, MMXU]
+
+contains:
+  required:
+    - { class: bess_bms.v1, count: 1 }
+    - { class: bess_inverter.v1, count: 1 }
+  scalable:
+    - { class: bess_cell.v1, count_min: 1, count_max: 256 }
+
+measurements:
+  rack_voltage_dc:
+    unit: volts
+    type: float
+    poll_rate_hz: 0.5
+    display_name_default: "Rack DC Voltage"
+    iec_61850_ref: "MMXU1.PhV.cVal.mag.f"
+  rack_temp:
+    unit: celsius
+    type: float
+    poll_rate_hz: 0.2
+    display_name_default: "Rack Temperature"
+  rack_alarm:
+    unit: none
+    type: enum
+    values:
+      ok:    { severity: ok,    register_value: 0 }
+      warn:  { severity: warn,  register_value: 1 }
+      fault: { severity: alarm, register_value: 2 }
+    display_name_default: "Rack Alarm"
+
+protocol_binding_template:
+  type: modbus_tcp
+  register_map:
+    rack_voltage_dc: { addr: 4000, type: int16, scale: 0.1 }
+    rack_temp:       { addr: 4002, type: int16, scale: 0.1 }
+    rack_alarm:      { addr: 4010, type: uint8 }

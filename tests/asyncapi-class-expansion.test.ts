@@ -1,4 +1,11 @@
-/** Integration test — class catalog expands AsyncAPI channels per device. */
+/**
+ * Integration test — class catalog projects into x-protocol-source and
+ * x-enum-values extensions on the spec.
+ *
+ * The DTM-instance side (which devices, which classes) drives x-protocol-source.
+ * The class-catalog side (vocabulary across all loaded classes) drives
+ * x-enum-values. Channel templates themselves are class-agnostic.
+ */
 
 import "reflect-metadata";
 import { Test, TestingModule } from "@nestjs/testing";
@@ -28,11 +35,12 @@ const DTM_WITH_BESS = {
 };
 
 interface AsyncApiSpec {
-  channels: Record<string, { address: string }>;
+  "x-protocol-source"?: Record<string, Record<string, Record<string, unknown>>>;
+  "x-enum-values"?: Record<string, readonly string[]>;
 }
 
-describe("AsyncAPI class expansion", () => {
-  test("device with class bess_module.v1 expands to channels per measurement + command", async () => {
+describe("AsyncAPI class projection", () => {
+  test("DTM device with bess_module.v1 class projects into x-protocol-source", async () => {
     const password = process.env.POSTGRES_PASSWORD;
     if (!password) throw new Error("POSTGRES_PASSWORD not set");
     const pg = await startPostgres(password);
@@ -53,43 +61,32 @@ describe("AsyncAPI class expansion", () => {
     await app.init();
 
     try {
-      // Arrange — submit a DTM whose device has a known class
       const post = await client(app.getHttpServer())
         .post("/topology")
         .send(DTM_WITH_BESS);
       assert.strictEqual(post.status, 201);
 
-      // Act
       const res = await client(app.getHttpServer()).get("/asyncapi");
       assert.strictEqual(res.status, 200);
       const spec = res.body as AsyncApiSpec;
-      const addresses = Object.values(spec.channels).map((ch) => ch.address);
 
-      // Assert — bess_module.v1 has voltage_dc + alarm_state measurements,
-      // set_active_power + reset_alarm commands. Each becomes a channel.
-      assert.ok(
-        addresses.some((addr) =>
-          addr.includes("/devices/bess_001/measurements/voltage_dc/volts"),
-        ),
-        `missing voltage_dc channel; got: ${addresses.join(", ")}`,
-      );
-      assert.ok(
-        addresses.some((addr) =>
-          addr.includes("/devices/bess_001/measurements/alarm_state/none"),
-        ),
-        `missing alarm_state channel; got: ${addresses.join(", ")}`,
-      );
-      assert.ok(
-        addresses.some((addr) =>
-          addr.includes("/devices/bess_001/commands/set/active_power/watts"),
-        ),
-        `missing set_active_power channel; got: ${addresses.join(", ")}`,
-      );
-      assert.ok(
-        addresses.some((addr) =>
-          addr.includes("/devices/bess_001/commands/reset/alarm/none"),
-        ),
-        `missing reset_alarm channel; got: ${addresses.join(", ")}`,
+      // x-protocol-source keyed by device_id, then by measurement/command name
+      const sources = spec["x-protocol-source"];
+      assert.ok(sources, "x-protocol-source missing");
+      assert.ok(sources["bess_001"], "bess_001 absent from x-protocol-source");
+      assert.ok(sources["bess_001"]["voltage_dc"], "voltage_dc binding absent");
+      const voltage = sources["bess_001"]["voltage_dc"];
+      assert.strictEqual(voltage.protocol, "modbus_tcp");
+      assert.strictEqual(voltage.address, 3000);
+      assert.strictEqual(voltage.scale, 0.1);
+
+      // x-enum-values keyed by `${class}.${version}.${measurement}`
+      const enums = spec["x-enum-values"];
+      assert.ok(enums, "x-enum-values missing");
+      assert.deepStrictEqual(
+        enums["bess_module.v1.alarm_state"],
+        ["ok", "warn", "fault"],
+        "alarm_state enum vocabulary missing/incorrect",
       );
     } finally {
       await app.close();

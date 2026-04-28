@@ -1,0 +1,24 @@
+class: bess_cell
+version: v1
+
+iec_61850:
+  logical_nodes: [ZBAT]
+
+measurements:
+  cell_voltage:
+    unit: volts
+    type: float
+    poll_rate_hz: 0.1
+    display_name_default: "Cell Voltage"
+    iec_61850_ref: "ZBAT1.Vol.mag.f"
+  cell_temp:
+    unit: celsius
+    type: float
+    poll_rate_hz: 0.1
+    display_name_default: "Cell Temperature"
+
+protocol_binding_template:
+  type: modbus_tcp
+  register_map:
+    cell_voltage: { addr: 5000, type: int16, scale: 0.001 }
+    cell_temp:    { addr: 5002, type: int16, scale: 0.1 }

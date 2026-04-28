@@ -31,7 +31,11 @@ export class AsyncapiService {
   async generateSpec(): Promise<Record<string, unknown> | null> {
     const dtm = await this.topology.getLatest();
     if (!dtm) return null;
-    const spec = buildSpec(dtm, (ref) => this.classes.get(ref));
+    const spec = buildSpec(
+      dtm,
+      (ref) => this.classes.get(ref),
+      this.classes.all(),
+    );
     return spec as unknown as Record<string, unknown>;
   }
 
