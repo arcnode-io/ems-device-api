@@ -100,7 +100,7 @@ When the topology changes at runtime (device added, sensor goes offline, DTM re-
 The API provides several endpoints to manage this structure:
 
 - **POST /topology**: Accepts the full DTM (`devices` + `buses[]`), persists it, and regenerates the AsyncAPI v3 spec. Called by `platform-api` at delivery time and on release rollout — not by the HMI.
-- **GET /topology**: Returns the full DTM — `devices` (all device-0 and device-1 instances with class and display name) and `buses[]` (electrical bus topology). The HMI's primary source for the module browser and SLD rendering. Module type is derived from the `class` field: `bess_module.*` → BESS, `compute_module.*` → Compute, `thermal_module.*` → Thermal, `grid_module.*` → Grid.
+- **GET /topology**: Returns the full DTM — `devices` (all device-0 and device-1 instances with class and display name) and `buses[]` (electrical bus topology). The HMI's primary source for the module browser and SLD rendering. Module type is derived from the `class` field: `bess_module.*` → BESS, `compute_module.*` → Compute, `grid_module.*` → Grid.
 - **GET /asyncapi**: Returns the generated AsyncAPI v3 spec. Consumed by `ems-industrial-gateway`, `ems-line-controller`, and `ems-hmi`.
 - **Devices-0**: Devices at level 0 can be accessed at the `/devices-0/:device0Id` endpoint.
 - **Devices-1**: Devices at level 1 can be accessed at the `/devices-0/:device0Id/devices-1/device1Id` endpoint. In this scenario `device0Id` is the parent device and `device1Id` is the child device.

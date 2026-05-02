@@ -5,7 +5,7 @@
  * Validates the ADR-002 §7 amendment: parent-chain trees are arbitrary depth,
  * topic addressing stays flat, every level can declare its own measurements.
  * The same shape applies to compute (cluster -> chassis -> server -> GPU)
- * and thermal (plant -> chiller -> pump/CRAH/sensor) hierarchies.
+ * hierarchies.
  */
 
 import "reflect-metadata";
