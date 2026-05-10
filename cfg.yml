@@ -4,6 +4,7 @@ local:
   host: 127.0.0.1
   e2e: false
   postgresHost: localhost
+  templateCatalogRoot: device_templates
 
 beta:
   logLevel: INFO
@@ -11,3 +12,4 @@ beta:
   host: 0.0.0.0
   e2e: true
   postgresHost: postgres
+  templateCatalogRoot: /app/device_templates

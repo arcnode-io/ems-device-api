@@ -14,7 +14,15 @@ const DIAGNOSTIC_SEVERITY_ERROR = 0;
 import { describe, test } from "node:test";
 import { AppModuleWithDatabase } from "../src/app.module";
 import { startPostgres } from "./fixtures/containers";
+import { TEMPLATE_CATALOG } from "../src/templates/templates.module";
+import type { DeviceTemplateType } from "../src/templates/template.schema";
 import { BESS_MODULE_V1, COMPUTE_MODULE_V1 } from "./fixtures/templates";
+
+// Catalog stub — contains exactly the slugs used in SAMPLE_DTM.
+const STUB_CATALOG: Record<string, DeviceTemplateType> = {
+  bess_module_v1: BESS_MODULE_V1 as unknown as DeviceTemplateType,
+  compute_module_v1: COMPUTE_MODULE_V1 as unknown as DeviceTemplateType,
+};
 
 const SAMPLE_DTM = {
   deployment_uuid: "123e4567-e89b-12d3-a456-426614174001",
@@ -89,6 +97,8 @@ async function bootstrap(): Promise<{
         return defaultValue as T;
       },
     })
+    .overrideProvider(TEMPLATE_CATALOG)
+    .useValue(STUB_CATALOG)
     .compile();
 
   const app: INestApplication<App> = moduleFixture.createNestApplication();
@@ -190,7 +200,7 @@ describe("AsyncAPI", () => {
       assert.strictEqual(res.status, 200);
       assert.match(res.headers["content-type"] ?? "", /text\/html/);
       assert.ok(
-        res.text.includes("test-deployment-001"),
+        res.text.includes(SAMPLE_DTM.deployment_uuid),
         "deployment_uuid not in rendered HTML",
       );
       assert.match(res.text.toLowerCase(), /asyncapi/);

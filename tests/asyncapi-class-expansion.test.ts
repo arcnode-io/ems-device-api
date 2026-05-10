@@ -86,11 +86,15 @@ describe("AsyncAPI template projection", () => {
       assert.strictEqual(res.status, 200);
       const spec = res.body as AsyncApiSpec;
 
-      // x-protocol-source: protocol_binding_template escape hatch removed in PR 3;
-      // canonical templates now use per-measurement binding fields. The map still
-      // exists but only contains entries for leaf templates with binding fields.
+      // x-protocol-source: bess_module_v1 uses publisher (not binding) on all
+      // measurements, so no entries are emitted — the extension is present but empty.
       const sources = spec["x-protocol-source"];
       assert.ok(sources, "x-protocol-source missing");
+      assert.deepStrictEqual(
+        sources["bess_001"],
+        undefined,
+        "bess_module_v1 has no bindings — bess_001 should not appear in source map",
+      );
 
       // x-enum-values keyed by `${template}.${measurement}` (slug, no dots)
       // Values are string → alphabetical order (no register_value on new fixtures)

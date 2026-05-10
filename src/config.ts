@@ -23,6 +23,7 @@ const Config = z.object({
   host: z.string().transform((val) => new Address4(val).address),
   e2e: z.boolean(),
   postgresHost: z.enum(PostgresHost),
+  templateCatalogRoot: z.string(),
 });
 
 export type ConfigType = z.infer<typeof Config>;

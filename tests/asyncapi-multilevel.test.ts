@@ -140,11 +140,62 @@ describe("AsyncAPI multi-level (BESS-shaped)", () => {
       assert.strictEqual(res.status, 200);
       const spec = res.body as AsyncApiSpec;
 
-      // x-protocol-source: protocol_binding_template escape hatch removed in PR 3;
-      // module templates (bess_module_v1, bess_rack_v1) use publisher, not binding,
-      // so they produce no entries. Leaf templates produce entries where binding exists.
+      // x-protocol-source: module templates (bess_module_v1, bess_rack_v1) use
+      // publisher, not binding, so they produce no entries. Leaf templates (bess_bms_v1,
+      // bess_inverter_v1, bess_cell_v1) emit entries for each bound channel.
       const sources = spec["x-protocol-source"];
       assert.ok(sources, "x-protocol-source missing");
+
+      // Modbus default fields filled by Zod: data_type=int16, word_order=high_low, scale=1, offset=0
+      const MODBUS_DEFAULTS = {
+        data_type: "int16",
+        word_order: "high_low",
+        scale: 1,
+        offset: 0,
+      };
+
+      // Strong assertion: bms_01 uses bess_bms_v1 → bms_state_of_charge has modbus binding
+      assert.deepStrictEqual(
+        sources["bms_01"]?.["bms_state_of_charge"],
+        { protocol: "modbus_tcp", function_code: 3, address: 6000, ...MODBUS_DEFAULTS },
+        "bms_01.bms_state_of_charge binding mismatch",
+      );
+
+      // inverter_01 — both a float measurement and an enum measurement have bindings
+      assert.deepStrictEqual(
+        sources["inverter_01"]?.["active_power"],
+        { protocol: "modbus_tcp", function_code: 3, address: 7000, ...MODBUS_DEFAULTS },
+        "inverter_01.active_power binding mismatch",
+      );
+      assert.deepStrictEqual(
+        sources["inverter_01"]?.["inverter_state"],
+        { protocol: "modbus_tcp", function_code: 3, address: 7010, ...MODBUS_DEFAULTS },
+        "inverter_01.inverter_state binding mismatch",
+      );
+
+      // cell_001 + cell_002 both derive from bess_cell_v1
+      assert.deepStrictEqual(
+        sources["cell_001"]?.["cell_voltage"],
+        { protocol: "modbus_tcp", function_code: 3, address: 5000, ...MODBUS_DEFAULTS },
+        "cell_001.cell_voltage binding mismatch",
+      );
+      assert.deepStrictEqual(
+        sources["cell_002"]?.["cell_voltage"],
+        { protocol: "modbus_tcp", function_code: 3, address: 5000, ...MODBUS_DEFAULTS },
+        "cell_002.cell_voltage binding mismatch",
+      );
+
+      // Module-level devices produce no entries (publisher only)
+      assert.strictEqual(
+        sources["bess_module_01"],
+        undefined,
+        "bess_module_v1 should not appear in source map",
+      );
+      assert.strictEqual(
+        sources["rack_01"],
+        undefined,
+        "bess_rack_v1 should not appear in source map",
+      );
 
       // Enum values — multiple levels declare enums independently
       // Keys now use underscore slugs (no dots); values alphabetical (no register_value)

@@ -10,6 +10,11 @@ import { ExampleService } from "../src/example/example.service";
 import { describe, test } from "node:test";
 import { Example } from "../src/example/entities/example.entity";
 import { startPostgres } from "./fixtures/containers";
+import { TEMPLATE_CATALOG } from "../src/templates/templates.module";
+import type { DeviceTemplateType } from "../src/templates/template.schema";
+
+// Empty catalog stub — ExampleResource tests don't submit any DTMs.
+const STUB_CATALOG: Record<string, DeviceTemplateType> = {};
 
 describe("Example Resource", () => {
   test("can create and retrieve example from database via HTTP", async () => {
@@ -30,6 +35,8 @@ describe("Example Resource", () => {
           return defaultValue as T;
         },
       })
+      .overrideProvider(TEMPLATE_CATALOG)
+      .useValue(STUB_CATALOG)
       .compile();
 
     const app: INestApplication<App> = moduleFixture.createNestApplication();

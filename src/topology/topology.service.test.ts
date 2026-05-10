@@ -68,7 +68,7 @@ describe("TopologyService.validateAgainstCatalog", () => {
       () => svc.validateAgainstCatalog(dtm),
       (err: unknown) => {
         assert.ok(err instanceof BadRequestException);
-        assert.match((err).message, /unknown_template/);
+        assert.match(err.message, /unknown_template/);
         return true;
       },
     );
@@ -85,7 +85,7 @@ describe("TopologyService.validateAgainstCatalog", () => {
       () => svc.validateAgainstCatalog(dtm),
       (err: unknown) => {
         assert.ok(err instanceof BadRequestException);
-        const msg = (err).message;
+        const msg = err.message;
         assert.match(msg, /foo_tpl/);
         assert.match(msg, /bar_tpl/);
         return true;
