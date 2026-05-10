@@ -135,13 +135,13 @@ describe("MQTT topology_changed broadcast integration", () => {
       });
 
       // Let the device-api MQTT client finish its async connect before publishing
-      await new Promise((r) => setTimeout(r, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Act
       await service.save(SAMPLE_DTM as never);
 
       // Wait for publish round-trip
-      await new Promise((r) => setTimeout(r, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 1000));
 
       // Assert
       assert.equal(
