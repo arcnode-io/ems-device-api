@@ -93,7 +93,68 @@ Message types are compiled. Topic paths are fetched.
 
 When the topology changes at runtime (device added, sensor goes offline, DTM re-provisioned), device-api publishes to `system/topology-changed`. Both the gateway and HMI subscribe to this topic — on receipt they re-fetch `GET /asyncapi` and diff against their current subscriptions.
 
+## Day-1 Boot
 
+Per [ADR-003](../ems/boot_strategy_adr.md), the API fetches a DTM from S3-compatible storage at startup. One mechanism, four deployment recipes — only the endpoint URL changes.
+
+### Cloud (CFN + ECS Fargate)
+
+Set in CFN parameters or task env:
+
+```yaml
+bootDtmS3Url: s3://arcnode-artifacts/deployments/<deployment_id>/dtm.json
+s3EndpointUrl: ~  # null → real AWS S3
+```
+
+Task IAM role grants `s3:GetObject` on the artifact bucket.
+
+### On-prem ISO appliance
+
+Set:
+
+```yaml
+bootDtmS3Url: s3://arcnode-artifacts/deployments/<deployment_id>/dtm.json
+s3EndpointUrl: http://minio:9000
+```
+
+minio is already a daemon in the on-prem stack (per `ems/readme.md` On-Prem Deployment). Bake-time scripts populate the bucket before first boot.
+
+### Dev (docker-compose)
+
+LocalStack at port 4566. Compose file should include LocalStack alongside Postgres:
+
+```yaml
+services:
+  localstack:
+    image: localstack/localstack:3
+    environment:
+      SERVICES: s3
+    ports:
+      - "4566:4566"
+```
+
+Upload a sample DTM:
+
+```bash
+aws --endpoint-url=http://localhost:4566 s3 cp sample-dtm.json s3://arcnode-artifacts/deployments/sample/dtm.json
+```
+
+`cfg.yml`'s `local:` block points `s3EndpointUrl: http://localhost:4566` and `bootDtmS3Url: ~` by default. Set the URL to enable the seed.
+
+### Tests / CI
+
+Leave `bootDtmS3Url: ~`. Service boots empty; tests POST DTMs explicitly via `tests/topology.test.ts` patterns.
+
+### Behavior matrix
+
+| `bootDtmS3Url` | Topology table | Result |
+|---|---|---|
+| set | empty | fetch + seed |
+| set | populated | fetch + skip seed (don't overwrite operator changes) |
+| null | empty | graceful empty start |
+| null | populated | graceful empty start |
+
+Any fetch/parse/validation/catalog error when URL is set → fatal exit.
 
 ## Local Development Setup
 
