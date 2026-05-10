@@ -22,13 +22,35 @@ const SEVERITY: Record<Bump, number> = {
 };
 
 /**
- * Structural equality via JSON serialization. Key order is insertion-stable in V8.
+ * Stable JSON serialization with sorted keys so that JSONB round-trips
+ * (which reorder keys alphabetically) don't produce spurious diffs.
+ * @param value Any JSON-serializable value.
+ * @returns Canonical JSON string with sorted object keys at every level.
+ */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value);
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(",")}]`;
+  }
+  const sorted = Object.keys(value as Record<string, unknown>)
+    .sort()
+    .map(
+      (key) =>
+        `${JSON.stringify(key)}:${stableStringify((value as Record<string, unknown>)[key])}`,
+    )
+    .join(",");
+  return `{${sorted}}`;
+}
+
+/**
+ * Structural equality via stable (sorted-key) JSON serialization.
+ * Handles JSONB round-trips that reorder object keys.
  * @param left Left-hand value.
  * @param right Right-hand value.
  * @returns True when deep-equal.
  */
 function deepEqual(left: unknown, right: unknown): boolean {
-  return JSON.stringify(left) === JSON.stringify(right);
+  return stableStringify(left) === stableStringify(right);
 }
 
 /**

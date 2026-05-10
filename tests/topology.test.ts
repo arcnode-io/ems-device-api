@@ -199,4 +199,63 @@ describe("Topology", () => {
       await pg.stop();
     }
   });
+
+  test("POST /topology bumps version; GET /asyncapi reflects info.version", async () => {
+    // Arrange — fresh Postgres
+    const password = process.env.POSTGRES_PASSWORD;
+    if (!password) throw new Error("POSTGRES_PASSWORD not set");
+    const pg = await startPostgres(password);
+
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModuleWithDatabase],
+    })
+      .overrideProvider(ConfigService)
+      .useValue({
+        get: <T = string>(key: string, defaultValue?: T): T => {
+          if (key === "postgresPort") return pg.port as T;
+          return defaultValue as T;
+        },
+      })
+      .overrideProvider(TEMPLATE_CATALOG)
+      .useValue(STUB_CATALOG)
+      .compile();
+
+    const app: INestApplication<App> = moduleFixture.createNestApplication();
+    await app.init();
+    const http = client(app.getHttpServer());
+
+    try {
+      // Act 1 — first POST → bootstrap to 1.0.0
+      const post1 = await http.post("/topology").send(SAMPLE_DTM);
+      assert.strictEqual(post1.status, 201, JSON.stringify(post1.body));
+      let asyncapi = (await http.get("/asyncapi").expect(200)).body as {
+        info: { version: string };
+      };
+      assert.equal(asyncapi.info.version, "1.0.0");
+
+      // Act 2 — same DTM (no-op → still 1.0.0)
+      const post2 = await http.post("/topology").send(SAMPLE_DTM);
+      assert.strictEqual(post2.status, 201, JSON.stringify(post2.body));
+      asyncapi = (await http.get("/asyncapi").expect(200)).body as {
+        info: { version: string };
+      };
+      assert.equal(asyncapi.info.version, "1.0.0");
+
+      // Act 3 — change display_name (patch → 1.0.1)
+      // Reason: cast through unknown to mutate display_name without noUncheckedIndexedAccess noise.
+      const renamed = JSON.parse(JSON.stringify(SAMPLE_DTM)) as {
+        devices: { bess_001: { display_name: string } };
+      };
+      renamed.devices.bess_001.display_name = "Renamed";
+      const post3 = await http.post("/topology").send(renamed);
+      assert.strictEqual(post3.status, 201, JSON.stringify(post3.body));
+      asyncapi = (await http.get("/asyncapi").expect(200)).body as {
+        info: { version: string };
+      };
+      assert.equal(asyncapi.info.version, "1.0.1");
+    } finally {
+      await app.close();
+      await pg.stop();
+    }
+  });
 });
