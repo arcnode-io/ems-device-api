@@ -15,7 +15,10 @@
  */
 
 import type { DtmType } from "../topology/dtm.schema";
-import type { DeviceTemplateType, BindingType } from "../templates/template.schema";
+import type {
+  DeviceTemplateType,
+  BindingType,
+} from "../templates/template.schema";
 
 /** Per-device, per-channel protocol source map. */
 export type ProtocolSourceMap = Record<string, Record<string, unknown>>;
@@ -47,9 +50,7 @@ export function buildProtocolSourceMap(dtm: DtmType): ProtocolSourceMap {
  * @param tpl Validated DeviceTemplate with measurements and commands
  * @returns Map of channel name -> binding fields (empty if no bindings)
  */
-function collectBindings(
-  tpl: DeviceTemplateType,
-): Record<string, BindingType> {
+function collectBindings(tpl: DeviceTemplateType): Record<string, BindingType> {
   const out: Record<string, BindingType> = {};
   for (const [name, meas] of Object.entries(tpl.measurements)) {
     if (meas.binding !== null && meas.binding !== undefined) {
@@ -95,5 +96,7 @@ export function buildEnumValuesMap(
  * @returns Label keys in deterministic alphabetical order
  */
 function orderedEnumLabels(values: Record<string, unknown>): readonly string[] {
-  return Object.keys(values).sort((labelA, labelB) => labelA.localeCompare(labelB));
+  return Object.keys(values).sort((labelA, labelB) =>
+    labelA.localeCompare(labelB),
+  );
 }

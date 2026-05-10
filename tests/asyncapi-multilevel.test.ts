@@ -157,31 +157,56 @@ describe("AsyncAPI multi-level (BESS-shaped)", () => {
       // Strong assertion: bms_01 uses bess_bms_v1 → bms_state_of_charge has modbus binding
       assert.deepStrictEqual(
         sources["bms_01"]?.["bms_state_of_charge"],
-        { protocol: "modbus_tcp", function_code: 3, address: 6000, ...MODBUS_DEFAULTS },
+        {
+          protocol: "modbus_tcp",
+          function_code: 3,
+          address: 6000,
+          ...MODBUS_DEFAULTS,
+        },
         "bms_01.bms_state_of_charge binding mismatch",
       );
 
       // inverter_01 — both a float measurement and an enum measurement have bindings
       assert.deepStrictEqual(
         sources["inverter_01"]?.["active_power"],
-        { protocol: "modbus_tcp", function_code: 3, address: 7000, ...MODBUS_DEFAULTS },
+        {
+          protocol: "modbus_tcp",
+          function_code: 3,
+          address: 7000,
+          ...MODBUS_DEFAULTS,
+        },
         "inverter_01.active_power binding mismatch",
       );
       assert.deepStrictEqual(
         sources["inverter_01"]?.["inverter_state"],
-        { protocol: "modbus_tcp", function_code: 3, address: 7010, ...MODBUS_DEFAULTS },
+        {
+          protocol: "modbus_tcp",
+          function_code: 3,
+          address: 7010,
+          ...MODBUS_DEFAULTS,
+        },
         "inverter_01.inverter_state binding mismatch",
       );
 
       // cell_001 + cell_002 both derive from bess_cell_v1
       assert.deepStrictEqual(
         sources["cell_001"]?.["cell_voltage"],
-        { protocol: "modbus_tcp", function_code: 3, address: 5000, ...MODBUS_DEFAULTS },
+        {
+          protocol: "modbus_tcp",
+          function_code: 3,
+          address: 5000,
+          ...MODBUS_DEFAULTS,
+        },
         "cell_001.cell_voltage binding mismatch",
       );
       assert.deepStrictEqual(
         sources["cell_002"]?.["cell_voltage"],
-        { protocol: "modbus_tcp", function_code: 3, address: 5000, ...MODBUS_DEFAULTS },
+        {
+          protocol: "modbus_tcp",
+          function_code: 3,
+          address: 5000,
+          ...MODBUS_DEFAULTS,
+        },
         "cell_002.cell_voltage binding mismatch",
       );
 

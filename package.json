@@ -9,7 +9,7 @@
     "dev": "nest start --watch",
     "build": "nest build",
     "preview": "node dist/src/main.js",
-    "depcheck": "depcheck --ignores=@types/*,@typescript-eslint/*,globals,bun:test,@nestjs/*,@swc/*,ts-loader,ts-node,tsconfig-paths,source-map-support,swagger-ui-express,@aws-sdk/client-s3",
+    "depcheck": "depcheck --ignores=@types/*,@typescript-eslint/*,globals,bun:test,@nestjs/*,@swc/*,ts-loader,ts-node,tsconfig-paths,source-map-support,swagger-ui-express",
     "format": "prettier --write src tests",
     "typecheck": "tsc --noEmit --incremental false; eslint -c eslint-typecheck.config.mjs src tests",
     "audit-src": "eslint -c eslint-security.config.mjs src tests",
