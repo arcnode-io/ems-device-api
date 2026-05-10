@@ -82,7 +82,27 @@ The spec serves two purposes at different times:
 
 Message types are compiled. Topic paths are fetched.
 
-When the topology changes at runtime (device added, sensor goes offline, DTM re-provisioned), device-api publishes to `system/topology-changed`. Both the gateway and HMI subscribe to this topic — on receipt they re-fetch `GET /asyncapi` and diff against their current subscriptions.
+When the topology changes at runtime (device added, sensor goes offline, DTM re-provisioned), device-api publishes to `system/topology_changed` with `{ ts, version }` where `version` is monotonically bumped per ADR-002 §10. Gateway, line-controller, and HMI subscribe to this topic — on receipt they re-fetch `GET /asyncapi` (HMI also re-fetches `GET /topology`) and diff against their current subscriptions.
+
+```plantuml
+participant device_api
+queue broker
+participant industrial_gateway
+participant line_controller
+participant ems_hmi
+
+device_api -> broker: publish system/topology_changed\n{ ts, version }
+broker -> industrial_gateway: forward
+broker -> line_controller: forward
+broker -> ems_hmi: forward
+industrial_gateway -> device_api: GET /asyncapi
+line_controller -> device_api: GET /asyncapi
+ems_hmi -> device_api: GET /asyncapi
+ems_hmi -> device_api: GET /topology
+industrial_gateway -> industrial_gateway: diff + reconcile topic subs
+line_controller -> line_controller: diff + reconcile topic subs
+ems_hmi -> ems_hmi: diff + reconcile topic subs
+```
 
 ## Day-1 Boot
 
