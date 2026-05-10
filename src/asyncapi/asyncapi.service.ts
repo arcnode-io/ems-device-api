@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import * as yaml from "yaml";
+import type { DtmType } from "../topology/dtm.schema";
 import { TopologyService } from "../topology/topology.service";
 import { buildSpec } from "./spec-generator";
 
@@ -26,9 +27,9 @@ export class AsyncapiService {
    * @returns The AsyncAPI 3.0.0 spec, or null if no DTM has been submitted yet.
    */
   async generateSpec(): Promise<Record<string, unknown> | null> {
-    const dtm = await this.topology.getLatest();
-    if (!dtm) return null;
-    const spec = buildSpec(dtm);
+    const row = await this.topology.getLatestRow();
+    if (!row) return null;
+    const spec = buildSpec(row.dtm as DtmType, row.version);
     return spec as unknown as Record<string, unknown>;
   }
 

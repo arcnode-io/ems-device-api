@@ -68,15 +68,17 @@ interface AsyncApi3Spec {
  * @param dtm Validated Device Topology Manifest (latest persisted) — its
  *            `templates_used` map provides every template referenced by
  *            `devices`, removing the need for a separate catalog lookup.
+ * @param version Semver assigned to this DTM by TopologyService.save
+ *            per ADR-002 §10. Embedded as info.version.
  * @returns The AsyncAPI 3.0.0 spec ready for JSON / YAML serialization
  */
-export function buildSpec(dtm: DtmType): AsyncApi3Spec {
+export function buildSpec(dtm: DtmType, version: string): AsyncApi3Spec {
   const templates = Object.values(dtm.templates_used);
   return {
     asyncapi: SPEC_VERSION,
     info: {
       title: `ARCNODE EMS — ${dtm.deployment_uuid}`,
-      version: "1.0.0",
+      version,
       description: `AsyncAPI v3 contract generated from DTM ${dtm.deployment_uuid}.`,
     },
     servers: DEFAULT_SERVERS,
