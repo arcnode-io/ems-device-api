@@ -73,5 +73,25 @@ async function startPostgres(
   };
 }
 
-export { startContainer, startPostgres };
+/**
+ * Start a LocalStack S3 container with dynamic port.
+ * @returns Container with http:// URL pointing at LocalStack edge port
+ */
+async function startLocalStack(): Promise<Container> {
+  const started = await new GenericContainer("localstack/localstack:3")
+    .withExposedPorts(4566)
+    .withEnvironment({ SERVICES: "s3", DEBUG: "0" })
+    .withWaitStrategy(Wait.forLogMessage("Ready."))
+    .start();
+
+  const port = started.getMappedPort(4566);
+  return {
+    host: "localhost",
+    port,
+    url: `http://localhost:${port}`,
+    stop: () => started.stop(),
+  };
+}
+
+export { startContainer, startPostgres, startLocalStack };
 export type { Container };
