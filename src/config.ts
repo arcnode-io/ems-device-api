@@ -26,6 +26,7 @@ const Config = z.object({
   templateCatalogRoot: z.string(),
   bootDtmS3Url: z.string().nullable(),
   s3EndpointUrl: z.string().nullable(),
+  mqttBrokerUrl: z.string(),
 });
 
 export type ConfigType = z.infer<typeof Config>;

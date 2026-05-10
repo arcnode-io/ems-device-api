@@ -7,6 +7,7 @@ local:
   templateCatalogRoot: device_templates
   bootDtmS3Url: ~
   s3EndpointUrl: http://localhost:4566
+  mqttBrokerUrl: mqtt://localhost:1883
 
 beta:
   logLevel: INFO
@@ -17,3 +18,4 @@ beta:
   templateCatalogRoot: /app/device_templates
   bootDtmS3Url: ~
   s3EndpointUrl: ~
+  mqttBrokerUrl: mqtt://emqx:1883
