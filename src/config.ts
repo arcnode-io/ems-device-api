@@ -24,6 +24,8 @@ const Config = z.object({
   e2e: z.boolean(),
   postgresHost: z.enum(PostgresHost),
   templateCatalogRoot: z.string(),
+  bootDtmS3Url: z.string().nullable(),
+  s3EndpointUrl: z.string().nullable(),
 });
 
 export type ConfigType = z.infer<typeof Config>;

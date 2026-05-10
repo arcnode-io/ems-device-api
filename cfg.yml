@@ -5,6 +5,8 @@ local:
   e2e: false
   postgresHost: localhost
   templateCatalogRoot: device_templates
+  bootDtmS3Url: ~
+  s3EndpointUrl: http://localhost:4566
 
 beta:
   logLevel: INFO
@@ -13,3 +15,5 @@ beta:
   e2e: true
   postgresHost: postgres
   templateCatalogRoot: /app/device_templates
+  bootDtmS3Url: ~
+  s3EndpointUrl: ~
