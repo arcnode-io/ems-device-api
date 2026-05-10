@@ -93,5 +93,27 @@ async function startLocalStack(): Promise<Container> {
   };
 }
 
-export { startContainer, startPostgres, startLocalStack };
+/**
+ * Start an emqx broker container with dynamic port. MQTT 3.1.1 / 5 on 1883.
+ * Anonymous broker — no auth per v1.
+ * @returns Container with mqtt:// URL pointing at emqx
+ */
+async function startEmqx(): Promise<Container> {
+  const started = await new GenericContainer("emqx/emqx:latest")
+    .withExposedPorts(1883)
+    .withWaitStrategy(
+      Wait.forLogMessage("Listener tcp:default on 0.0.0.0:1883 started."),
+    )
+    .start();
+
+  const port = started.getMappedPort(1883);
+  return {
+    host: "localhost",
+    port,
+    url: `mqtt://localhost:${port}`,
+    stop: () => started.stop(),
+  };
+}
+
+export { startContainer, startPostgres, startLocalStack, startEmqx };
 export type { Container };
