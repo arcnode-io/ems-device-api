@@ -22,6 +22,9 @@ check:
 publish:
     stage: publish
     script:
+      - rm -rf device_templates
+      - git clone --depth 1 https://gitlab-ci-token:$CI_JOB_TOKEN@gitlab.com/arcnode-io/edp-api.git /tmp/edp-api
+      - cp -r /tmp/edp-api/device_templates ./device_templates
       - docker login -u admin -p $HARBOR_PASSWORD 173.211.12.43:8083
       - docker build -t 173.211.12.43:8083/library/ems-device-api .
       - docker push 173.211.12.43:8083/library/ems-device-api

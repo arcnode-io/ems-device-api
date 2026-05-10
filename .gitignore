@@ -3,6 +3,9 @@
 /node_modules
 /build
 
+# device_templates: bundled from edp-api at Docker build time; symlinked for local dev
+device_templates/
+
 # Logs
 logs
 *.log

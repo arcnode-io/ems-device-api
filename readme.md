@@ -95,6 +95,21 @@ When the topology changes at runtime (device added, sensor goes offline, DTM re-
 
 
 
+## Local Development Setup
+
+The `device_templates/` directory is bundled into the production image at
+build time from the sibling `edp-api` repo. For local dev, symlink:
+
+```sh
+ln -s ../edp-api/device_templates device_templates
+```
+
+Override the catalog root via env var if your layout differs:
+
+```sh
+TEMPLATE_CATALOG_ROOT=/path/to/device_templates npm run dev
+```
+
 ### API Endpoints
 
 The API provides several endpoints to manage this structure:
