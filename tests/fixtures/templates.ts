@@ -1,30 +1,41 @@
 /**
- * Minimal template fixtures for tests. Self-contained — no filesystem deps.
+ * Minimal template fixtures for tests — canonical DeviceTemplate shape.
+ * Self-contained — no filesystem deps.
  *
- * Mirror just enough shape from `arcnode/device_templates/` for the spec
- * generator's projections (x-protocol-source, x-enum-values) to land
- * deterministic values. Tests embed these in `dtm.templates_used`.
+ * Cascade note (PR 3): templates are now validated against the strict DeviceTemplate
+ * Zod schema (extra="forbid"). Old `version` and `protocol_binding_template` fields
+ * have been removed. Leaf templates require kind, equipment_id, vendor, model.
+ * Module templates require kind and description; equipment_id/vendor/model forbidden.
  */
 
+const modbusBinding = {
+  protocol: "modbus_tcp" as const,
+  function_code: 3,
+  address: 3000,
+};
+
 export const BESS_MODULE_V1 = {
-  template: "bess_module",
-  version: "v1",
+  template: "bess_module_v1",
+  kind: "module" as const,
+  description: "BESS container module — aggregate DC bus readings.",
   measurements: {
     voltage_dc: {
       unit: "volts",
       type: "float" as const,
       poll_rate_hz: 0.5,
       display_name_default: "DC Voltage",
+      publisher: "line_controller" as const,
     },
     alarm_state: {
       unit: "none",
       type: "enum" as const,
       values: {
-        ok: { severity: "ok", register_value: 0 },
-        warn: { severity: "warn", register_value: 1 },
-        fault: { severity: "alarm", register_value: 2 },
+        ok: "ok",
+        warn: "warn",
+        fault: "fault",
       },
       display_name_default: "Alarm",
+      publisher: "line_controller" as const,
     },
   },
   commands: {
@@ -34,79 +45,86 @@ export const BESS_MODULE_V1 = {
       unit: "watts",
       payload: "float" as const,
       display_name_default: "Active Power Setpoint",
-    },
-  },
-  protocol_binding_template: {
-    type: "modbus_tcp",
-    register_map: {
-      voltage_dc: { addr: 3000, type: "int16", scale: 0.1 },
-      alarm_state: { addr: 3010, type: "uint8" },
+      fanout: "line_controller" as const,
     },
   },
 };
 
 export const BESS_RACK_V1 = {
-  template: "bess_rack",
-  version: "v1",
+  template: "bess_rack_v1",
+  kind: "module" as const,
+  description: "BESS rack — contains BMS, inverter, and cells.",
   measurements: {
     rack_voltage_dc: {
       unit: "volts",
       type: "float" as const,
       poll_rate_hz: 0.5,
+      publisher: "line_controller" as const,
     },
     rack_alarm: {
       unit: "none",
       type: "enum" as const,
       values: {
-        ok: { severity: "ok", register_value: 0 },
-        warn: { severity: "warn", register_value: 1 },
-        fault: { severity: "alarm", register_value: 2 },
+        ok: "ok",
+        warn: "warn",
+        fault: "fault",
       },
-    },
-  },
-  protocol_binding_template: {
-    type: "modbus_tcp",
-    register_map: {
-      rack_voltage_dc: { addr: 4000, type: "int16", scale: 0.1 },
-      rack_alarm: { addr: 4010, type: "uint8" },
+      publisher: "line_controller" as const,
     },
   },
 };
 
 export const BESS_BMS_V1 = {
-  template: "bess_bms",
-  version: "v1",
+  template: "bess_bms_v1",
+  kind: "leaf" as const,
+  equipment_id: "EQ-BMS",
+  vendor: "Acme",
+  model: "BMS-100",
+  description: "Battery Management System leaf device.",
   measurements: {
     bms_state_of_charge: {
       unit: "percent",
       type: "float" as const,
       poll_rate_hz: 1.0,
-    },
-  },
-  protocol_binding_template: {
-    type: "modbus_tcp",
-    register_map: {
-      bms_state_of_charge: { addr: 6000, type: "uint16", scale: 0.01 },
+      binding: {
+        protocol: "modbus_tcp" as const,
+        function_code: 3,
+        address: 6000,
+      },
     },
   },
 };
 
 export const BESS_INVERTER_V1 = {
-  template: "bess_inverter",
-  version: "v1",
+  template: "bess_inverter_v1",
+  kind: "leaf" as const,
+  equipment_id: "EQ-INV",
+  vendor: "Acme",
+  model: "INV-200",
+  description: "DC-AC inverter leaf device.",
   measurements: {
     active_power: {
       unit: "watts",
       type: "float" as const,
       poll_rate_hz: 1.0,
+      binding: {
+        protocol: "modbus_tcp" as const,
+        function_code: 3,
+        address: 7000,
+      },
     },
     inverter_state: {
       unit: "none",
       type: "enum" as const,
       values: {
-        idle: { severity: "ok", register_value: 0 },
-        running: { severity: "ok", register_value: 1 },
-        fault: { severity: "alarm", register_value: 2 },
+        idle: "idle",
+        running: "running",
+        fault: "fault",
+      },
+      binding: {
+        protocol: "modbus_tcp" as const,
+        function_code: 3,
+        address: 7010,
       },
     },
   },
@@ -116,40 +134,46 @@ export const BESS_INVERTER_V1 = {
       target: "active_power",
       unit: "watts",
       payload: "float" as const,
-    },
-  },
-  protocol_binding_template: {
-    type: "modbus_tcp",
-    register_map: {
-      active_power: { addr: 7000, type: "int32" },
-      inverter_state: { addr: 7010, type: "uint8" },
+      binding: modbusBinding,
     },
   },
 };
 
 export const BESS_CELL_V1 = {
-  template: "bess_cell",
-  version: "v1",
+  template: "bess_cell_v1",
+  kind: "leaf" as const,
+  equipment_id: "EQ-CELL",
+  vendor: "Acme",
+  model: "CELL-48V",
+  description: "Individual battery cell leaf device.",
   measurements: {
     cell_voltage: {
       unit: "volts",
       type: "float" as const,
       poll_rate_hz: 0.1,
-    },
-  },
-  protocol_binding_template: {
-    type: "modbus_tcp",
-    register_map: {
-      cell_voltage: { addr: 5000, type: "int16", scale: 0.001 },
+      binding: {
+        protocol: "modbus_tcp" as const,
+        function_code: 3,
+        address: 5000,
+      },
     },
   },
 };
 
 export const COMPUTE_MODULE_V1 = {
-  template: "compute_module",
-  version: "v1",
+  template: "compute_module_v1",
+  kind: "module" as const,
+  description: "Compute module aggregate — power and utilization rolled up.",
   measurements: {
-    total_power_draw: { unit: "watts", type: "float" as const },
-    utilization: { unit: "percent", type: "float" as const },
+    total_power_draw: {
+      unit: "watts",
+      type: "float" as const,
+      publisher: "line_controller" as const,
+    },
+    utilization: {
+      unit: "percent",
+      type: "float" as const,
+      publisher: "line_controller" as const,
+    },
   },
 };

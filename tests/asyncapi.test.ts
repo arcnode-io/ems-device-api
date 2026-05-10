@@ -17,10 +17,7 @@ import { startPostgres } from "./fixtures/containers";
 import { BESS_MODULE_V1, COMPUTE_MODULE_V1 } from "./fixtures/templates";
 
 const SAMPLE_DTM = {
-  dtm_version: "1.0",
-  deployment_uuid: "test-deployment-001",
-  generated_at: "2026-04-26T00:00:00Z",
-  sizing_ref: "sizing-001",
+  deployment_uuid: "123e4567-e89b-12d3-a456-426614174001",
   sizing_params: {
     P_compute_total_kW: 100.0,
     E_BESS_total_kWh: 200.0,
@@ -28,24 +25,26 @@ const SAMPLE_DTM = {
   },
   devices: {
     bess_001: {
-      template: "bess_module.v1",
+      device_id: "bess_001",
+      template: "bess_module_v1",
       display_name: "BESS-001",
     },
     compute_001: {
-      template: "compute_module.v1",
+      device_id: "compute_001",
+      template: "compute_module_v1",
       display_name: "COMPUTE-001",
     },
   },
   buses: [
     {
-      id: "dc_bus_main",
+      bus_id: "dc_bus_main",
       type: "dc",
       members: [{ device_id: "bess_001" }, { device_id: "compute_001" }],
     },
   ],
   templates_used: {
-    "bess_module.v1": BESS_MODULE_V1,
-    "compute_module.v1": COMPUTE_MODULE_V1,
+    bess_module_v1: BESS_MODULE_V1,
+    compute_module_v1: COMPUTE_MODULE_V1,
   },
 };
 

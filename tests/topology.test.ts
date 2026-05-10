@@ -11,29 +11,35 @@ import { describe, test } from "node:test";
 import { AppModuleWithDatabase } from "../src/app.module";
 import { startPostgres } from "./fixtures/containers";
 
-// Minimal templates for round-trip — must satisfy the DeviceTemplate schema
-// (`template`, `version`, at least one of measurements/commands).
+// Minimal templates for round-trip — canonical DeviceTemplate shape.
 const TEMPLATE_BESS = {
-  template: "bess_module",
-  version: "v1",
+  template: "bess_module_v1",
+  kind: "module" as const,
+  description: "BESS module aggregate.",
   measurements: {
-    voltage_dc: { unit: "volts", type: "float" as const },
+    voltage_dc: {
+      unit: "volts",
+      type: "float" as const,
+      publisher: "line_controller" as const,
+    },
   },
 };
 const TEMPLATE_COMPUTE = {
-  template: "compute_module",
-  version: "v1",
+  template: "compute_module_v1",
+  kind: "module" as const,
+  description: "Compute module aggregate.",
   measurements: {
-    total_power_draw: { unit: "watts", type: "float" as const },
+    total_power_draw: {
+      unit: "watts",
+      type: "float" as const,
+      publisher: "line_controller" as const,
+    },
   },
 };
 
-// Mirror of edp-api's Dtm Pydantic shape (src/generators/dtm_models.py).
+// Mirror of edp-api's Dtm Pydantic shape (src/shared/schemas/dtm.py).
 const SAMPLE_DTM = {
-  dtm_version: "1.0",
-  deployment_uuid: "test-deployment-001",
-  generated_at: "2026-04-26T00:00:00Z",
-  sizing_ref: "sizing-001",
+  deployment_uuid: "123e4567-e89b-12d3-a456-426614174004",
   sizing_params: {
     P_compute_total_kW: 100.0,
     E_BESS_total_kWh: 200.0,
@@ -41,25 +47,27 @@ const SAMPLE_DTM = {
   },
   devices: {
     bess_001: {
-      template: "bess_module.v1",
+      device_id: "bess_001",
+      template: "bess_module_v1",
       display_name: "BESS-001",
     },
     compute_001: {
-      template: "compute_module.v1",
+      device_id: "compute_001",
+      template: "compute_module_v1",
       display_name: "COMPUTE-001",
       parent: "bess_001",
     },
   },
   buses: [
     {
-      id: "dc_bus_main",
+      bus_id: "dc_bus_main",
       type: "dc",
       members: [{ device_id: "bess_001" }, { device_id: "compute_001" }],
     },
   ],
   templates_used: {
-    "bess_module.v1": TEMPLATE_BESS,
-    "compute_module.v1": TEMPLATE_COMPUTE,
+    bess_module_v1: TEMPLATE_BESS,
+    compute_module_v1: TEMPLATE_COMPUTE,
   },
 };
 
@@ -98,7 +106,6 @@ describe("Topology", () => {
 
       // Assert — round-tripped values land verbatim
       const body = get.body as typeof SAMPLE_DTM;
-      assert.strictEqual(body.dtm_version, SAMPLE_DTM.dtm_version);
       assert.strictEqual(body.deployment_uuid, SAMPLE_DTM.deployment_uuid);
       assert.strictEqual(
         Object.keys(body.devices).length,

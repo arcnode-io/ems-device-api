@@ -161,7 +161,9 @@ export const DeviceTemplate = z
     (tpl) =>
       Object.keys(tpl.measurements).length > 0 ||
       Object.keys(tpl.commands).length > 0,
-    { message: "template must declare at least one of measurements or commands" },
+    {
+      message: "template must declare at least one of measurements or commands",
+    },
   );
 
 // Public TypeScript types (inferred from Zod schemas)

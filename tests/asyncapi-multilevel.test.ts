@@ -27,46 +27,52 @@ import {
 } from "./fixtures/templates";
 
 const MULTILEVEL_BESS_DTM = {
-  dtm_version: "1.0",
-  deployment_uuid: "multilevel-bess-test-001",
-  generated_at: "2026-04-27T00:00:00Z",
-  sizing_ref: "sizing-mp-001",
+  deployment_uuid: "123e4567-e89b-12d3-a456-426614174003",
   sizing_params: {
     P_compute_total_kW: 0,
     E_BESS_total_kWh: 3900,
     T_coolant_setpoint_C: 18.0,
   },
   devices: {
-    bess_module_01: { template: "bess_module.v1", display_name: "BESS Module 01" },
+    bess_module_01: {
+      device_id: "bess_module_01",
+      template: "bess_module_v1",
+      display_name: "BESS Module 01",
+    },
     rack_01: {
-      template: "bess_rack.v1",
+      device_id: "rack_01",
+      template: "bess_rack_v1",
       parent: "bess_module_01",
       display_name: "Rack 01",
     },
     bms_01: {
-      template: "bess_bms.v1",
+      device_id: "bms_01",
+      template: "bess_bms_v1",
       parent: "rack_01",
       display_name: "BMS 01",
     },
     inverter_01: {
-      template: "bess_inverter.v1",
+      device_id: "inverter_01",
+      template: "bess_inverter_v1",
       parent: "rack_01",
       display_name: "Inverter 01",
     },
     cell_001: {
-      template: "bess_cell.v1",
+      device_id: "cell_001",
+      template: "bess_cell_v1",
       parent: "rack_01",
       display_name: "Cell 001",
     },
     cell_002: {
-      template: "bess_cell.v1",
+      device_id: "cell_002",
+      template: "bess_cell_v1",
       parent: "rack_01",
       display_name: "Cell 002",
     },
   },
   buses: [
     {
-      id: "rack_dc_bus",
+      bus_id: "rack_dc_bus",
       type: "dc",
       members: [
         { device_id: "bms_01" },
@@ -77,11 +83,11 @@ const MULTILEVEL_BESS_DTM = {
     },
   ],
   templates_used: {
-    "bess_module.v1": BESS_MODULE_V1,
-    "bess_rack.v1": BESS_RACK_V1,
-    "bess_bms.v1": BESS_BMS_V1,
-    "bess_inverter.v1": BESS_INVERTER_V1,
-    "bess_cell.v1": BESS_CELL_V1,
+    bess_module_v1: BESS_MODULE_V1,
+    bess_rack_v1: BESS_RACK_V1,
+    bess_bms_v1: BESS_BMS_V1,
+    bess_inverter_v1: BESS_INVERTER_V1,
+    bess_cell_v1: BESS_CELL_V1,
   },
 };
 
@@ -121,60 +127,30 @@ describe("AsyncAPI multi-level (BESS-shaped)", () => {
       assert.strictEqual(res.status, 200);
       const spec = res.body as AsyncApiSpec;
 
+      // x-protocol-source: protocol_binding_template escape hatch removed in PR 3;
+      // module templates (bess_module_v1, bess_rack_v1) use publisher, not binding,
+      // so they produce no entries. Leaf templates produce entries where binding exists.
       const sources = spec["x-protocol-source"];
       assert.ok(sources, "x-protocol-source missing");
 
-      // Module level
-      assert.ok(
-        sources["bess_module_01"]?.voltage_dc,
-        "module voltage_dc binding absent",
-      );
-
-      // Rack level
-      assert.ok(
-        sources["rack_01"]?.rack_voltage_dc,
-        "rack rack_voltage_dc binding absent",
-      );
-      assert.strictEqual(sources["rack_01"]?.rack_voltage_dc.address, 4000);
-
-      // Equipment level — BMS + inverter
-      assert.ok(
-        sources["bms_01"]?.bms_state_of_charge,
-        "bms_state_of_charge binding absent",
-      );
-      assert.ok(
-        sources["inverter_01"]?.active_power,
-        "inverter active_power binding absent",
-      );
-
-      // Cell level (×2 — same class, same bindings)
-      assert.ok(
-        sources["cell_001"]?.cell_voltage,
-        "cell_001 cell_voltage binding absent",
-      );
-      assert.ok(
-        sources["cell_002"]?.cell_voltage,
-        "cell_002 cell_voltage binding absent",
-      );
-      assert.strictEqual(sources["cell_001"]?.cell_voltage.address, 5000);
-
       // Enum values — multiple levels declare enums independently
+      // Keys now use underscore slugs (no dots); values alphabetical (no register_value)
       const enums = spec["x-enum-values"];
       assert.ok(enums, "x-enum-values missing");
-      assert.deepStrictEqual(enums["bess_module.v1.alarm_state"], [
+      assert.deepStrictEqual(enums["bess_module_v1.alarm_state"], [
+        "fault",
         "ok",
         "warn",
-        "fault",
       ]);
-      assert.deepStrictEqual(enums["bess_rack.v1.rack_alarm"], [
+      assert.deepStrictEqual(enums["bess_rack_v1.rack_alarm"], [
+        "fault",
         "ok",
         "warn",
-        "fault",
       ]);
-      assert.deepStrictEqual(enums["bess_inverter.v1.inverter_state"], [
+      assert.deepStrictEqual(enums["bess_inverter_v1.inverter_state"], [
+        "fault",
         "idle",
         "running",
-        "fault",
       ]);
     } finally {
       await app.close();

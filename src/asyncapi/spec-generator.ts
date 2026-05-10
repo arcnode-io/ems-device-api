@@ -76,7 +76,7 @@ export function buildSpec(dtm: DtmType): AsyncApi3Spec {
     asyncapi: SPEC_VERSION,
     info: {
       title: `ARCNODE EMS — ${dtm.deployment_uuid}`,
-      version: dtm.dtm_version,
+      version: "1.0.0",
       description: `AsyncAPI v3 contract generated from DTM ${dtm.deployment_uuid}.`,
     },
     servers: DEFAULT_SERVERS,

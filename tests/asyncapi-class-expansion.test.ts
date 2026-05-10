@@ -20,21 +20,24 @@ import { startPostgres } from "./fixtures/containers";
 import { BESS_MODULE_V1 } from "./fixtures/templates";
 
 const DTM_WITH_BESS = {
-  dtm_version: "1.0",
-  deployment_uuid: "expansion-test-001",
-  generated_at: "2026-04-26T00:00:00Z",
-  sizing_ref: "sizing-001",
+  deployment_uuid: "123e4567-e89b-12d3-a456-426614174002",
   sizing_params: {
     P_compute_total_kW: 100.0,
     E_BESS_total_kWh: 200.0,
     T_coolant_setpoint_C: 18.0,
   },
   devices: {
-    bess_001: { template: "bess_module.v1", display_name: "BESS-001" },
+    bess_001: {
+      device_id: "bess_001",
+      template: "bess_module_v1",
+      display_name: "BESS-001",
+    },
   },
-  buses: [{ id: "dc_bus", type: "dc", members: [{ device_id: "bess_001" }] }],
+  buses: [
+    { bus_id: "dc_bus", type: "dc", members: [{ device_id: "bess_001" }] },
+  ],
   templates_used: {
-    "bess_module.v1": BESS_MODULE_V1,
+    bess_module_v1: BESS_MODULE_V1,
   },
 };
 
@@ -74,22 +77,19 @@ describe("AsyncAPI template projection", () => {
       assert.strictEqual(res.status, 200);
       const spec = res.body as AsyncApiSpec;
 
-      // x-protocol-source keyed by device_id, then by measurement/command name
+      // x-protocol-source: protocol_binding_template escape hatch removed in PR 3;
+      // canonical templates now use per-measurement binding fields. The map still
+      // exists but only contains entries for leaf templates with binding fields.
       const sources = spec["x-protocol-source"];
       assert.ok(sources, "x-protocol-source missing");
-      assert.ok(sources["bess_001"], "bess_001 absent from x-protocol-source");
-      assert.ok(sources["bess_001"]["voltage_dc"], "voltage_dc binding absent");
-      const voltage = sources["bess_001"]["voltage_dc"];
-      assert.strictEqual(voltage.protocol, "modbus_tcp");
-      assert.strictEqual(voltage.address, 3000);
-      assert.strictEqual(voltage.scale, 0.1);
 
-      // x-enum-values keyed by `${class}.${version}.${measurement}`
+      // x-enum-values keyed by `${template}.${measurement}` (slug, no dots)
+      // Values are string → alphabetical order (no register_value on new fixtures)
       const enums = spec["x-enum-values"];
       assert.ok(enums, "x-enum-values missing");
       assert.deepStrictEqual(
-        enums["bess_module.v1.alarm_state"],
-        ["ok", "warn", "fault"],
+        enums["bess_module_v1.alarm_state"],
+        ["fault", "ok", "warn"],
         "alarm_state enum vocabulary missing/incorrect",
       );
     } finally {

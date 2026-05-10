@@ -1,58 +1,107 @@
 /**
- * Zod schemas for the Device Topology Manifest.
+ * Zod schemas for the Device Topology Manifest — canonical mirror of
+ * edp-api Pydantic schema (src/shared/schemas/dtm.py + dtm_primitives.py).
  *
- * Mirror of `edp-api/src/generators/dtm_models.py` (Pydantic). edp-api emits;
- * device-api receives. Drift between the two ⇒ POST /topology rejects with 400.
- *
- * Per ADR-002 §7, the DTM is self-describing: every template referenced by
- * `devices[*].template` appears verbatim under `templates_used`, so the
- * spec generator never reads from disk.
+ * Per ADR-002 §7: devices keyed by snake_case slug, templates_used embedded,
+ * buses typed dc|ac, three referential-integrity refines. Strict objects
+ * everywhere to mirror Pydantic extra="forbid".
  */
 
 import { z } from "zod";
-import { DeviceTemplate } from "../templates/template.schema";
+import { DeviceTemplate, Measurement } from "../templates/template.schema";
 
-export const DeviceConnection = z.object({
-  host: z.string().optional(),
-  port: z.number().int().optional(),
-  unit_id: z.string().optional(),
+// Slug pattern — ADR-002 §9
+const SLUG_RE = /^[a-z][a-z0-9_]{0,62}[a-z0-9]$/;
+
+// Sentinel used in DTM YAML for fields the utility assigns at commissioning.
+export const PROVISIONED_AT_COMMISSIONING = "PROVISIONED_AT_COMMISSIONING";
+
+// Int field that may carry the placeholder until the utility provisions it.
+export const ProvisionedInt = z.union([
+  z.number().int(),
+  z.literal(PROVISIONED_AT_COMMISSIONING),
+]);
+
+export const EmsMode = z.enum(["sim", "live"]);
+export type EmsModeType = z.infer<typeof EmsMode>;
+
+export const BlockingKind = z.enum(["live_mode", "commissioning_complete"]);
+export type BlockingKindType = z.infer<typeof BlockingKind>;
+
+export const Connection = z.strictObject({
+  host: z.string(),
+  port: ProvisionedInt,
+  unit_id: z.string().nullish(),
 });
+export type ConnectionType = z.infer<typeof Connection>;
 
-export const DtmDevice = z.object({
-  template: z.string(),
-  display_name: z.string().optional(),
-  parent: z.string().optional(),
-  connection: DeviceConnection.optional(),
-});
-
-export const BusMember = z.object({
-  device_id: z.string(),
-  port: z.string().optional(),
-});
-
-// ADR-002 §1: bus type is "dc" | "ac". Be stricter on the receive side than
-// edp-api's free-form string so drift surfaces at the boundary.
-export const Bus = z.object({
-  id: z.string(),
-  type: z.enum(["dc", "ac"]),
-  members: z.array(BusMember),
-});
-
-export const SizingParams = z.object({
+export const SizingParams = z.strictObject({
   P_compute_total_kW: z.number(),
   E_BESS_total_kWh: z.number(),
   T_coolant_setpoint_C: z.number(),
 });
+export type SizingParamsType = z.infer<typeof SizingParams>;
 
-export const Dtm = z.object({
-  dtm_version: z.string(),
-  deployment_uuid: z.string(),
-  generated_at: z.string(),
-  sizing_ref: z.string(),
-  sizing_params: SizingParams,
-  devices: z.record(z.string(), DtmDevice),
-  buses: z.array(Bus),
-  templates_used: z.record(z.string(), DeviceTemplate),
+export const Device = z.strictObject({
+  device_id: z.string().regex(SLUG_RE, "device_id must be a snake_case slug"),
+  template: z.string(),
+  parent: z.string().nullish(),
+  display_name: z.string().nullish(),
+  connection: Connection.nullish(),
+  blocking: z.array(BlockingKind).default(["live_mode"]),
+  extra_measurements: z.record(z.string(), Measurement).nullish(),
 });
+export type DeviceType = z.infer<typeof Device>;
+
+export const BusMember = z.strictObject({
+  device_id: z.string(),
+  port: z.string().nullish(),
+});
+export type BusMemberType = z.infer<typeof BusMember>;
+
+export const Bus = z.strictObject({
+  bus_id: z.string(),
+  type: z.enum(["dc", "ac"]),
+  members: z.array(BusMember),
+});
+export type BusType = z.infer<typeof Bus>;
+
+export const Dtm = z
+  .strictObject({
+    deployment_uuid: z.string().uuid(),
+    ems_mode: EmsMode.default("sim"),
+    sizing_ref: z.string().nullish(),
+    sizing_params: SizingParams,
+    devices: z.record(z.string(), Device),
+    buses: z.array(Bus),
+    templates_used: z.record(z.string(), DeviceTemplate),
+  })
+  // parent_chain_resolves: every device.parent must be null or a key in devices
+  .refine(
+    (dtm) =>
+      Object.values(dtm.devices).every(
+        (dev) =>
+          dev.parent === null ||
+          dev.parent === undefined ||
+          dev.parent in dtm.devices,
+      ),
+    "device.parent must resolve in devices",
+  )
+  // template_refs_resolve: every device.template must be a key in templates_used
+  .refine(
+    (dtm) =>
+      Object.values(dtm.devices).every(
+        (dev) => dev.template in dtm.templates_used,
+      ),
+    "device.template must resolve in templates_used",
+  )
+  // bus_members_resolve: every bus member device_id must be a key in devices
+  .refine(
+    (dtm) =>
+      dtm.buses.every((bus) =>
+        bus.members.every((member) => member.device_id in dtm.devices),
+      ),
+    "bus member device_id must resolve in devices",
+  );
 
 export type DtmType = z.infer<typeof Dtm>;
