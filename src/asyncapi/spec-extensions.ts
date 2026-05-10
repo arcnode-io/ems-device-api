@@ -59,7 +59,7 @@ export function buildEnumValuesMap(
 ): EnumValuesMap {
   const out: Record<string, readonly string[]> = {};
   for (const tpl of templates) {
-    const key = `${tpl.template}.${tpl.version}`;
+    const key = tpl.template;
     for (const [name, meas] of Object.entries(tpl.measurements ?? {})) {
       if (meas.type === "enum" && meas.values) {
         out[`${key}.${name}`] = orderedEnumLabels(meas.values);
