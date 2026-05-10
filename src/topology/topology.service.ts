@@ -10,6 +10,7 @@ import { Topology } from "./topology.entity";
 import type { DtmType } from "./dtm.schema";
 import { TEMPLATE_CATALOG } from "../templates/templates.module";
 import type { DeviceTemplateType } from "../templates/template.schema";
+import { MqttClientService } from "../mqtt/mqtt.client.service";
 
 /**
  * Compute the next monotonic version per ADR-002 §10 (MVP simplification).
@@ -41,15 +42,17 @@ export class TopologyService {
   private readonly logger = new Logger(TopologyService.name);
 
   /**
-   * Wires the TypeORM repository and the bundled template catalog.
+   * Wires the TypeORM repository, bundled template catalog, and MQTT client.
    * @param repo TypeORM repository for Topology rows
    * @param catalog Slug-keyed device template catalog loaded at startup
+   * @param mqtt MQTT client for system/topology_changed broadcasts
    */
   constructor(
     @InjectRepository(Topology)
     private readonly repo: Repository<Topology>,
     @Inject(TEMPLATE_CATALOG)
     private readonly catalog: Record<string, DeviceTemplateType>,
+    private readonly mqtt: MqttClientService,
   ) {}
 
   /**
@@ -90,7 +93,9 @@ export class TopologyService {
       dtm: dtm as unknown as Record<string, unknown>,
       version,
     });
-    return await this.repo.save(row);
+    const saved = await this.repo.save(row);
+    this.mqtt.publishTopologyChanged(version);
+    return saved;
   }
 
   /**
