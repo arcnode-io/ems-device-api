@@ -200,7 +200,7 @@ describe("Topology", () => {
     }
   });
 
-  test("POST /topology bumps version; GET /asyncapi reflects info.version", async () => {
+  test("POST /topology bumps version monotonically; GET /asyncapi reflects info.version", async () => {
     // Arrange — fresh Postgres
     const password = process.env.POSTGRES_PASSWORD;
     if (!password) throw new Error("POSTGRES_PASSWORD not set");
@@ -233,15 +233,15 @@ describe("Topology", () => {
       };
       assert.equal(asyncapi.info.version, "1.0.0");
 
-      // Act 2 — same DTM (no-op → still 1.0.0)
+      // Act 2 — same DTM → bumps to 1.0.1 (monotonic, no diff)
       const post2 = await http.post("/topology").send(SAMPLE_DTM);
       assert.strictEqual(post2.status, 201, JSON.stringify(post2.body));
       asyncapi = (await http.get("/asyncapi").expect(200)).body as {
         info: { version: string };
       };
-      assert.equal(asyncapi.info.version, "1.0.0");
+      assert.equal(asyncapi.info.version, "1.0.1");
 
-      // Act 3 — change display_name (patch → 1.0.1)
+      // Act 3 — change display_name → bumps to 1.0.2
       // Reason: cast through unknown to mutate display_name without noUncheckedIndexedAccess noise.
       const renamed = JSON.parse(JSON.stringify(SAMPLE_DTM)) as {
         devices: { bess_001: { display_name: string } };
@@ -252,7 +252,7 @@ describe("Topology", () => {
       asyncapi = (await http.get("/asyncapi").expect(200)).body as {
         info: { version: string };
       };
-      assert.equal(asyncapi.info.version, "1.0.1");
+      assert.equal(asyncapi.info.version, "1.0.2");
     } finally {
       await app.close();
       await pg.stop();

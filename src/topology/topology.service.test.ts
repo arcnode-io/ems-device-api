@@ -8,7 +8,7 @@ import * as assert from "node:assert/strict";
 import { describe, it, mock } from "node:test";
 import { BadRequestException } from "@nestjs/common";
 import { TopologyService } from "./topology.service";
-import type { DeviceType, DtmType } from "./dtm.schema";
+import type { DtmType } from "./dtm.schema";
 import type { DeviceTemplateType } from "../templates/template.schema";
 import type { Repository } from "typeorm";
 import type { Topology } from "./topology.entity";
@@ -106,24 +106,9 @@ describe("TopologyService.validateAgainstCatalog", () => {
   });
 });
 
-describe("TopologyService.save — version bump", () => {
-  const TEMPLATE = {
-    template: "bess_module",
-    kind: "module" as const,
-    description: "BESS",
-    contains: [],
-    measurements: {
-      voltage_dc: {
-        unit: "volts",
-        type: "float" as const,
-        publisher: "line_controller" as const,
-      },
-    },
-    commands: {},
-  };
-
-  /** Builds a minimal single-device DTM fixture for version-bump tests. */
-  function baseDtm(): DtmType & { devices: Record<string, DeviceType> } {
+describe("TopologyService.save — monotonic version bump", () => {
+  /** Minimal DTM fixture — only version bookkeeping fields matter here. */
+  function baseDtm(): DtmType {
     return {
       deployment_uuid: "123e4567-e89b-12d3-a456-426614174000",
       ems_mode: "sim" as const,
@@ -133,24 +118,13 @@ describe("TopologyService.save — version bump", () => {
         E_BESS_total_kWh: 200,
         T_coolant_setpoint_C: 18,
       },
-      devices: {
-        bess_module_1: {
-          device_id: "bess_module_1",
-          template: "bess_module",
-          parent: null,
-          display_name: null,
-          connection: null,
-          blocking: ["live_mode" as const],
-          extra_measurements: null,
-        },
-      } as Record<string, DeviceType>,
+      devices: {},
       buses: [],
-      templates_used: { bess_module: TEMPLATE as never },
-    };
+      templates_used: {},
+    } as unknown as DtmType;
   }
 
   it("first save → version 1.0.0", async () => {
-    // Arrange — repo returns no prior rows
     const repo = {
       findOne: mock.fn(() => Promise.resolve(null)),
       create: mock.fn((arg: { dtm: unknown; version: string }) => arg),
@@ -159,14 +133,11 @@ describe("TopologyService.save — version bump", () => {
       ),
     };
     const svc = new TopologyService(repo as never, {});
-    // Act
     const row = await svc.save(baseDtm() as never);
-    // Assert
     assert.equal((row as { version: string }).version, "1.0.0");
   });
 
-  it("identical DTM → version unchanged", async () => {
-    // Arrange — repo returns prior row with version 1.0.0
+  it("second save (any change or no change) → patch + 1", async () => {
     const prior = { dtm: baseDtm(), version: "1.0.0" };
     const repo = {
       findOne: mock.fn(() => Promise.resolve(prior)),
@@ -176,54 +147,22 @@ describe("TopologyService.save — version bump", () => {
       ),
     };
     const svc = new TopologyService(repo as never, {});
-    // Act
     const row = await svc.save(baseDtm() as never);
-    // Assert
-    assert.equal((row as { version: string }).version, "1.0.0");
+    assert.equal((row as { version: string }).version, "1.0.1");
   });
 
-  it("device added → version 1.1.0", async () => {
-    // Arrange
-    const prior = { dtm: baseDtm(), version: "1.0.0" };
+  it("Nth save → patch + (N-1)", async () => {
+    const prior = { dtm: baseDtm(), version: "1.0.41" };
     const repo = {
       findOne: mock.fn(() => Promise.resolve(prior)),
       create: mock.fn((arg: { dtm: unknown; version: string }) => arg),
       save: mock.fn((row: { dtm: unknown; version: string }) =>
-        Promise.resolve({ ...row, id: 2, receivedAt: new Date() }),
+        Promise.resolve({ ...row, id: 42, receivedAt: new Date() }),
       ),
     };
     const svc = new TopologyService(repo as never, {});
-    const next = baseDtm();
-    next.devices.bess_module_2 = {
-      ...next.devices.bess_module_1!,
-      device_id: "bess_module_2",
-    };
-    // Act
-    const row = await svc.save(next as never);
-    // Assert
-    assert.equal((row as { version: string }).version, "1.1.0");
-  });
-
-  it("device removed → version 2.0.0", async () => {
-    // Arrange
-    const priorDtm = baseDtm();
-    priorDtm.devices.bess_module_2 = {
-      ...priorDtm.devices.bess_module_1!,
-      device_id: "bess_module_2",
-    };
-    const prior = { dtm: priorDtm, version: "1.0.0" };
-    const repo = {
-      findOne: mock.fn(() => Promise.resolve(prior)),
-      create: mock.fn((arg: { dtm: unknown; version: string }) => arg),
-      save: mock.fn((row: { dtm: unknown; version: string }) =>
-        Promise.resolve({ ...row, id: 2, receivedAt: new Date() }),
-      ),
-    };
-    const svc = new TopologyService(repo as never, {});
-    // Act
     const row = await svc.save(baseDtm() as never);
-    // Assert
-    assert.equal((row as { version: string }).version, "2.0.0");
+    assert.equal((row as { version: string }).version, "1.0.42");
   });
 });
 

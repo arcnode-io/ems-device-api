@@ -10,16 +10,31 @@ import { Topology } from "./topology.entity";
 import type { DtmType } from "./dtm.schema";
 import { TEMPLATE_CATALOG } from "../templates/templates.module";
 import type { DeviceTemplateType } from "../templates/template.schema";
-import { diffDtm, nextVersion } from "./dtm_diff";
+
+/**
+ * Compute the next monotonic version per ADR-002 §10 (MVP simplification).
+ * Bootstrap → 1.0.0; subsequent saves bump the patch component by 1.
+ * @param prev Prior version (e.g., "1.0.7") or null on bootstrap.
+ * @returns Next semver string.
+ */
+function nextMonotonicVersion(prev: string | null): string {
+  if (prev === null) return "1.0.0";
+  // Reason: semver is always "M.m.p" — non-null asserts safe for validated input
+  const parts = prev.split(".").map(Number);
+  const major = parts[0]!;
+  const minor = parts[1]!;
+  const patch = parts[2]!;
+  return `${major}.${minor}.${patch + 1}`;
+}
 
 /**
  * Persists DTM submissions and returns the most recent.
  * Single-tenant — no scoping by deployment_uuid; the running container is
  * scoped to one ARCNODE deployment by construction.
  *
- * Each save() runs dtm_diff against the prior row and computes the next
- * semver per ADR-002 §10. Identical DTMs still create rows (audit lineage)
- * but version stays the same.
+ * Each save() increments a monotonic version per ADR-002 §10. Major/minor
+ * semantic classification deferred until consumers actually need it; current
+ * MVP uses unconditional patch bumps as the change signal.
  */
 @Injectable()
 export class TopologyService {
@@ -40,8 +55,6 @@ export class TopologyService {
   /**
    * Throws BadRequestException if any slug in dtm.templates_used is not in
    * the bundled catalog.
-   * This is one level above Zod's template_refs_resolve refine — it checks that the
-   * device-api actually knows how to resolve each slug, not just that dtm is self-consistent.
    * @param dtm Validated Device Topology Manifest
    */
   validateAgainstCatalog(dtm: DtmType): void {
@@ -56,9 +69,8 @@ export class TopologyService {
   }
 
   /**
-   * Persist a DTM. Computes the next semver from prior row + diff per
-   * ADR-002 §10. Bootstrap → 1.0.0. Identical DTM → version unchanged + new
-   * row (audit).
+   * Persist a DTM with a monotonic version bump per ADR-002 §10.
+   * Bootstrap → 1.0.0. Every subsequent save → patch + 1.
    * @param dtm Validated Device Topology Manifest
    * @returns The persisted Topology row, including assigned version
    */
@@ -67,18 +79,12 @@ export class TopologyService {
       where: {},
       order: { receivedAt: "DESC" },
     });
-    const priorDtm = (prior?.dtm ?? null) as DtmType | null;
     const priorVersion = prior?.version ?? null;
-    const diff = diffDtm(priorDtm, dtm);
-    const version = nextVersion(priorVersion, diff);
-    const reasonStr =
-      diff.reasons.length > 0 ? `: ${diff.reasons.join("; ")}` : "";
+    const version = nextMonotonicVersion(priorVersion);
     if (priorVersion === null) {
       this.logger.log(`seeded topology v${version} (initial)`);
     } else {
-      this.logger.log(
-        `updated topology v${priorVersion} → v${version} (${diff.bump}${reasonStr})`,
-      );
+      this.logger.log(`updated topology v${priorVersion} → v${version}`);
     }
     const row = this.repo.create({
       dtm: dtm as unknown as Record<string, unknown>,
@@ -102,7 +108,7 @@ export class TopologyService {
 
   /**
    * Return the most-recently persisted Topology row (DTM + version + meta),
-   * or null. Used by AsyncapiService to emit the real version in info.version.
+   * or null. Used by AsyncapiService to emit version in info.version.
    * @returns The latest row, or null
    */
   async getLatestRow(): Promise<Topology | null> {
