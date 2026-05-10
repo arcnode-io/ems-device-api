@@ -18,6 +18,8 @@ import * as assert from "assert";
 import { describe, test } from "node:test";
 import { AppModuleWithDatabase } from "../src/app.module";
 import { startPostgres } from "./fixtures/containers";
+import { TEMPLATE_CATALOG } from "../src/templates/templates.module";
+import type { DeviceTemplateType } from "../src/templates/template.schema";
 import {
   BESS_MODULE_V1,
   BESS_RACK_V1,
@@ -25,6 +27,15 @@ import {
   BESS_INVERTER_V1,
   BESS_CELL_V1,
 } from "./fixtures/templates";
+
+// Catalog stub — contains exactly the slugs used in MULTILEVEL_BESS_DTM.
+const TEST_CATALOG: Record<string, DeviceTemplateType> = {
+  bess_module_v1: BESS_MODULE_V1 as unknown as DeviceTemplateType,
+  bess_rack_v1: BESS_RACK_V1 as unknown as DeviceTemplateType,
+  bess_bms_v1: BESS_BMS_V1 as unknown as DeviceTemplateType,
+  bess_inverter_v1: BESS_INVERTER_V1 as unknown as DeviceTemplateType,
+  bess_cell_v1: BESS_CELL_V1 as unknown as DeviceTemplateType,
+};
 
 const MULTILEVEL_BESS_DTM = {
   deployment_uuid: "123e4567-e89b-12d3-a456-426614174003",
@@ -112,6 +123,8 @@ describe("AsyncAPI multi-level (BESS-shaped)", () => {
           return defaultValue as T;
         },
       })
+      .overrideProvider(TEMPLATE_CATALOG)
+      .useValue(TEST_CATALOG)
       .compile();
 
     const app: INestApplication<App> = moduleFixture.createNestApplication();

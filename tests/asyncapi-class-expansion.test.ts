@@ -17,7 +17,14 @@ import * as assert from "assert";
 import { describe, test } from "node:test";
 import { AppModuleWithDatabase } from "../src/app.module";
 import { startPostgres } from "./fixtures/containers";
+import { TEMPLATE_CATALOG } from "../src/templates/templates.module";
+import type { DeviceTemplateType } from "../src/templates/template.schema";
 import { BESS_MODULE_V1 } from "./fixtures/templates";
+
+// Catalog stub — contains exactly the slugs used in DTM_WITH_BESS.
+const TEST_CATALOG: Record<string, DeviceTemplateType> = {
+  bess_module_v1: BESS_MODULE_V1 as unknown as DeviceTemplateType,
+};
 
 const DTM_WITH_BESS = {
   deployment_uuid: "123e4567-e89b-12d3-a456-426614174002",
@@ -62,6 +69,8 @@ describe("AsyncAPI template projection", () => {
           return defaultValue as T;
         },
       })
+      .overrideProvider(TEMPLATE_CATALOG)
+      .useValue(TEST_CATALOG)
       .compile();
 
     const app: INestApplication<App> = moduleFixture.createNestApplication();
