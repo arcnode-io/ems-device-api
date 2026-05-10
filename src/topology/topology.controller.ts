@@ -23,10 +23,14 @@ export class TopologyController {
   @Post()
   @ApiOperation({ summary: "Submit DTM" })
   @ApiResponse({ status: 201 })
-  @ApiResponse({ status: 400, description: "DTM failed schema validation" })
+  @ApiResponse({
+    status: 400,
+    description: "DTM failed schema or catalog validation",
+  })
   async submit(
     @Body(new ZodValidationPipe(Dtm)) dtm: DtmType,
   ): Promise<{ ok: true }> {
+    this.service.validateAgainstCatalog(dtm);
     await this.service.save(dtm);
     return { ok: true };
   }

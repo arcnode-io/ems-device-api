@@ -10,6 +10,8 @@ import * as assert from "assert";
 import { describe, test } from "node:test";
 import { AppModuleWithDatabase } from "../src/app.module";
 import { startPostgres } from "./fixtures/containers";
+import { TEMPLATE_CATALOG } from "../src/templates/templates.module";
+import type { DeviceTemplateType } from "../src/templates/template.schema";
 
 // Minimal templates for round-trip — canonical DeviceTemplate shape.
 const TEMPLATE_BESS = {
@@ -35,6 +37,14 @@ const TEMPLATE_COMPUTE = {
       publisher: "line_controller" as const,
     },
   },
+};
+
+// Catalog stub — contains exactly the slugs used in SAMPLE_DTM.
+// Reason: integration tests only need the record key to be present;
+// cast via unknown because the fixtures omit optional fields that strict DeviceTemplateType requires.
+const STUB_CATALOG: Record<string, DeviceTemplateType> = {
+  bess_module_v1: TEMPLATE_BESS as unknown as DeviceTemplateType,
+  compute_module_v1: TEMPLATE_COMPUTE as unknown as DeviceTemplateType,
 };
 
 // Mirror of edp-api's Dtm Pydantic shape (src/shared/schemas/dtm.py).
@@ -88,6 +98,8 @@ describe("Topology", () => {
           return defaultValue as T;
         },
       })
+      .overrideProvider(TEMPLATE_CATALOG)
+      .useValue(STUB_CATALOG)
       .compile();
 
     const app: INestApplication<App> = moduleFixture.createNestApplication();
@@ -135,6 +147,8 @@ describe("Topology", () => {
           return defaultValue as T;
         },
       })
+      .overrideProvider(TEMPLATE_CATALOG)
+      .useValue(STUB_CATALOG)
       .compile();
 
     const app: INestApplication<App> = moduleFixture.createNestApplication();
@@ -170,6 +184,8 @@ describe("Topology", () => {
           return defaultValue as T;
         },
       })
+      .overrideProvider(TEMPLATE_CATALOG)
+      .useValue(STUB_CATALOG)
       .compile();
 
     const app: INestApplication<App> = moduleFixture.createNestApplication();
