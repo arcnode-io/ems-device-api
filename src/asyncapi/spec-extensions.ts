@@ -29,37 +29,55 @@ export type EnumValuesMap = Record<string, readonly string[]>;
 /**
  * Walk every device in the DTM, look up its template in `templates_used`,
  * and project per-measurement/command `binding` fields into a per-device,
- * per-channel-name map. Only entries with an explicit `binding` field are
- * emitted; measurements with `publisher` (module-level aggregates) are skipped.
+ * per-channel-name map. Each entry merges the template's binding with the
+ * device's `connection` block (host/port/unit_id) so consumers have
+ * everything needed to drive the protocol in one place.
+ * Only entries with an explicit `binding` field are emitted; measurements
+ * with `publisher` (module-level aggregates) are skipped.
  * @param dtm The self-describing deployment manifest
- * @returns Map keyed by `device_id` -> `channel_name` -> binding fields
+ * @returns Map keyed by `device_id` -> `channel_name` -> binding + connection
  */
 export function buildProtocolSourceMap(dtm: DtmType): ProtocolSourceMap {
   const out: ProtocolSourceMap = {};
   for (const [deviceId, device] of Object.entries(dtm.devices)) {
     const tpl = dtm.templates_used[device.template];
     if (!tpl) continue;
-    const entries = collectBindings(tpl);
+    const entries = collectBindings(tpl, device.connection ?? null);
     if (Object.keys(entries).length > 0) out[deviceId] = entries;
   }
   return out;
 }
 
+/** Per-device connection block (host/port/unit_id), nullable for module devices. */
+type ConnectionFields = {
+  host: string;
+  port: number | string;
+  unit_id?: string | null;
+} | null;
+
 /**
- * Collect all binding-bearing measurements and commands from a template.
+ * Collect all binding-bearing measurements and commands from a template,
+ * merging in the device's connection (host/port/unit_id) so consumers see
+ * the complete protocol-instance picture in one entry.
  * @param tpl Validated DeviceTemplate with measurements and commands
- * @returns Map of channel name -> binding fields (empty if no bindings)
+ * @param connection Device-level connection block (host/port/unit_id), or null
+ * @returns Map of channel name -> binding + connection fields
  */
-function collectBindings(tpl: DeviceTemplateType): Record<string, BindingType> {
-  const out: Record<string, BindingType> = {};
+function collectBindings(
+  tpl: DeviceTemplateType,
+  connection: ConnectionFields,
+): Record<string, BindingType & ConnectionFields> {
+  const out: Record<string, BindingType & ConnectionFields> = {};
+  const conn = connection ?? ({} as ConnectionFields);
   for (const [name, meas] of Object.entries(tpl.measurements)) {
     if (meas.binding !== null && meas.binding !== undefined) {
-      out[name] = meas.binding;
+      out[name] = { ...conn, ...meas.binding } as BindingType &
+        ConnectionFields;
     }
   }
   for (const [name, cmd] of Object.entries(tpl.commands)) {
     if (cmd.binding !== null && cmd.binding !== undefined) {
-      out[name] = cmd.binding;
+      out[name] = { ...conn, ...cmd.binding } as BindingType & ConnectionFields;
     }
   }
   return out;
