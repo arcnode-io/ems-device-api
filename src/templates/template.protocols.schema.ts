@@ -42,13 +42,6 @@ const RedfishBinding = z.strictObject({
   json_pointer: z.string().nullable().default(null),
 });
 
-const CanopenBinding = z.strictObject({
-  protocol: z.literal("canopen_gw"),
-  cob_id: z.number().int(),
-  byte_offset: z.number().int(),
-  byte_length: z.number().int(),
-});
-
 const BacnetIpBinding = z.strictObject({
   protocol: z.literal("bacnet_ip"),
   device_instance: z.number().int(),
@@ -69,7 +62,6 @@ export const Binding = z.discriminatedUnion("protocol", [
   Dnp3Binding,
   SnmpBinding,
   RedfishBinding,
-  CanopenBinding,
   BacnetIpBinding,
 ]);
 

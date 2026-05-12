@@ -133,14 +133,14 @@ describe("Binding", () => {
     assert.equal(result.json_pointer, null);
   });
 
-  it("parses CanopenBinding", () => {
+  it("parses BacnetIpBinding", () => {
     const result = ok(Binding, {
-      protocol: "canopen_gw",
-      cob_id: 0x181,
-      byte_offset: 0,
-      byte_length: 4,
+      protocol: "bacnet_ip",
+      device_instance: 11001,
+      object_type: "analog_input",
+      object_instance: 1,
     });
-    assert.equal(result.protocol, "canopen_gw");
+    assert.equal(result.protocol, "bacnet_ip");
   });
 
   it("rejects unknown protocol", () => {
