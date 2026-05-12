@@ -49,12 +49,28 @@ const CanopenBinding = z.strictObject({
   byte_length: z.number().int(),
 });
 
+const BacnetIpBinding = z.strictObject({
+  protocol: z.literal("bacnet_ip"),
+  device_instance: z.number().int(),
+  object_type: z.enum([
+    "analog_input",
+    "analog_output",
+    "analog_value",
+    "binary_input",
+    "binary_output",
+    "binary_value",
+  ]),
+  object_instance: z.number().int(),
+  property_id: z.enum(["present_value"]).default("present_value"),
+});
+
 export const Binding = z.discriminatedUnion("protocol", [
   ModbusBinding,
   Dnp3Binding,
   SnmpBinding,
   RedfishBinding,
   CanopenBinding,
+  BacnetIpBinding,
 ]);
 
 export type BindingType = z.infer<typeof Binding>;
