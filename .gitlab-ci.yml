@@ -25,9 +25,9 @@ publish:
       - rm -rf device_templates /tmp/edp-api
       - git clone --depth 1 https://gitlab-ci-token:$CI_JOB_TOKEN@gitlab.com/arcnode-io/edp-api.git /tmp/edp-api
       - cp -r /tmp/edp-api/device_templates ./device_templates
-      - docker login -u admin -p $HARBOR_PASSWORD 173.211.12.43:8083
-      - docker build -t 173.211.12.43:8083/library/ems-device-api .
-      - docker push 173.211.12.43:8083/library/ems-device-api
+      - aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
+      - docker build -t public.ecr.aws/y1d2j6a8/ems-device-api .
+      - docker push public.ecr.aws/y1d2j6a8/ems-device-api
 
 mirror:
   stage: mirror
