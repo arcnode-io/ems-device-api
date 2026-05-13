@@ -64,18 +64,15 @@ const KEY = "deployments/sample/dtm.json";
 
 /**
  * Bootstrap a NestJS test app with real Postgres + stubbed template catalog.
- * @param opts Container options
- * @param opts.port Mapped Postgres port from testcontainer
  * @returns Initialized NestJS application
  */
-async function bootstrap(opts: { port: number }): Promise<INestApplication> {
+async function bootstrap(): Promise<INestApplication> {
   const moduleRef: TestingModule = await Test.createTestingModule({
     imports: [AppModuleWithDatabase],
   })
     .overrideProvider(ConfigService)
     .useValue({
-      get: <T = string>(key: string, defaultValue?: T): T => {
-        if (key === "postgresPort") return opts.port as T;
+      get: <T = string>(_key: string, defaultValue?: T): T => {
         return defaultValue as T;
       },
     })
@@ -89,9 +86,8 @@ async function bootstrap(opts: { port: number }): Promise<INestApplication> {
 describe("seedFromS3 integration", () => {
   test("empty DB + S3 object present → topology seeded", async () => {
     // Arrange
-    const password = process.env["POSTGRES_PASSWORD"];
-    if (!password) throw new Error("POSTGRES_PASSWORD not set");
-    const pg = await startPostgres(password, { dbname: "postgres" });
+    const pg = await startPostgres(undefined, { dbname: "postgres" });
+    process.env["DOCUMENT_URL"] = pg.url;
     const ls = await startLocalStack();
     const s3 = new S3Client({
       endpoint: ls.url,
@@ -107,7 +103,7 @@ describe("seedFromS3 integration", () => {
         Body: JSON.stringify(SAMPLE_DTM),
       }),
     );
-    const app = await bootstrap({ port: pg.port });
+    const app = await bootstrap();
     try {
       // Act
       await seedFromS3(
@@ -131,9 +127,8 @@ describe("seedFromS3 integration", () => {
 
   test("populated DB → seed skipped (idempotent restart)", async () => {
     // Arrange
-    const password = process.env["POSTGRES_PASSWORD"];
-    if (!password) throw new Error("POSTGRES_PASSWORD not set");
-    const pg = await startPostgres(password, { dbname: "postgres" });
+    const pg = await startPostgres(undefined, { dbname: "postgres" });
+    process.env["DOCUMENT_URL"] = pg.url;
     const ls = await startLocalStack();
     const s3 = new S3Client({
       endpoint: ls.url,
@@ -154,7 +149,7 @@ describe("seedFromS3 integration", () => {
         Body: JSON.stringify(newDtm),
       }),
     );
-    const app = await bootstrap({ port: pg.port });
+    const app = await bootstrap();
     const service = app.get(TopologyService);
     // Pre-seed DB with original DTM (simulates operator-set topology)
     await service.save(SAMPLE_DTM as never);
@@ -179,10 +174,9 @@ describe("seedFromS3 integration", () => {
 
   test("url null → empty topology", async () => {
     // Arrange
-    const password = process.env["POSTGRES_PASSWORD"];
-    if (!password) throw new Error("POSTGRES_PASSWORD not set");
-    const pg = await startPostgres(password, { dbname: "postgres" });
-    const app = await bootstrap({ port: pg.port });
+    const pg = await startPostgres(undefined, { dbname: "postgres" });
+    process.env["DOCUMENT_URL"] = pg.url;
+    const app = await bootstrap();
     try {
       // Act
       await seedFromS3(app, null, null, new Logger("seed-test"));

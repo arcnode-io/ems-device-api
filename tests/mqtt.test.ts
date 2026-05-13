@@ -56,15 +56,13 @@ const SAMPLE_DTM = {
 };
 
 interface BootstrapOpts {
-  dbHost: string;
-  dbPort: number;
   brokerUrl: string;
 }
 
 /**
  * Build the Nest app with overridden Config + catalog so the broker URL
  * points at the testcontainer.
- * @param opts dbHost / dbPort / brokerUrl from running testcontainers
+ * @param opts broker URL from running testcontainers
  * @returns The initialized Nest app + TopologyService instance
  */
 async function bootstrap(opts: BootstrapOpts): Promise<{
@@ -77,8 +75,6 @@ async function bootstrap(opts: BootstrapOpts): Promise<{
     .overrideProvider(ConfigService)
     .useValue({
       get: <T>(key: string): T | undefined => {
-        if (key === "postgresHost") return opts.dbHost as unknown as T;
-        if (key === "postgresPort") return opts.dbPort as unknown as T;
         if (key === "mqttBrokerUrl") return opts.brokerUrl as unknown as T;
         return undefined;
       },
@@ -105,15 +101,11 @@ describe("MQTT topology_changed broadcast integration", () => {
   test("save → emqx broadcasts system/topology_changed { ts, version }", async () => {
     // Arrange — emqx + postgres testcontainers (dynamic ports)
     const broker = await startEmqx();
-    const pg = await startPostgres("test", { dbname: "postgres" });
+    const pg = await startPostgres(undefined, { dbname: "postgres" });
+    process.env["DOCUMENT_URL"] = pg.url;
     log("🐳", `emqx @ ${broker.url} | 🐘 postgres @ ${pg.host}:${pg.port}`);
 
-    process.env["POSTGRES_PASSWORD"] = "test";
-    process.env["POSTGRES_PORT"] = String(pg.port);
-
     const { app, service } = await bootstrap({
-      dbHost: pg.host,
-      dbPort: pg.port,
       brokerUrl: broker.url,
     });
 

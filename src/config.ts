@@ -12,17 +12,11 @@ export enum LogLevel {
   DEBUG = "DEBUG",
 }
 
-export enum PostgresHost {
-  LOCALHOST = "localhost",
-  POSTGRES = "postgres",
-}
-
 const Config = z.object({
   logLevel: z.enum(LogLevel),
   port: z.number().min(80),
   host: z.string().transform((val) => new Address4(val).address),
   e2e: z.boolean(),
-  postgresHost: z.enum(PostgresHost),
   templateCatalogRoot: z.string(),
   bootDtmS3Url: z.string().nullable(),
   s3EndpointUrl: z.string().nullable(),

@@ -47,7 +47,7 @@ async function startContainer(
  * @returns Container with postgresql:// URL and dynamic port
  */
 async function startPostgres(
-  password: string,
+  password = "test",
   opts?: {
     image?: string;
     username?: string;

@@ -29,16 +29,18 @@ export class AppModule {}
     }),
     TypeOrmModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => ({
-        type: "postgres",
-        host: configService.get("postgresHost"),
-        port: configService.get("postgresPort"),
-        username: "postgres",
-        password: process.env["POSTGRES_PASSWORD"],
-        database: "postgres",
-        autoLoadEntities: true,
-        synchronize: true,
-      }),
+      useFactory: (_configService: ConfigService) => {
+        const documentUrl = process.env["DOCUMENT_URL"];
+        if (documentUrl === undefined || documentUrl.length === 0) {
+          throw new Error("DOCUMENT_URL is required");
+        }
+        return {
+          type: "postgres",
+          url: documentUrl,
+          autoLoadEntities: true,
+          synchronize: true,
+        };
+      },
       inject: [ConfigService],
     }),
     ExampleModule,

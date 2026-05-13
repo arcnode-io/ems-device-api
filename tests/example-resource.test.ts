@@ -19,19 +19,15 @@ const STUB_CATALOG: Record<string, DeviceTemplateType> = {};
 describe("Example Resource", () => {
   test("can create and retrieve example from database via HTTP", async () => {
     // Arrange: Start testcontainer
-    const password = process.env.POSTGRES_PASSWORD;
-    if (!password) throw new Error("POSTGRES_PASSWORD not set");
-    const pg = await startPostgres(password);
+    const pg = await startPostgres();
+    process.env["DOCUMENT_URL"] = pg.url;
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModuleWithDatabase],
     })
       .overrideProvider(ConfigService)
       .useValue({
-        get: <T = string>(key: string, defaultValue?: T): T => {
-          if (key === "postgresPort") {
-            return pg.port as T;
-          }
+        get: <T = string>(_key: string, defaultValue?: T): T => {
           return defaultValue as T;
         },
       })
