@@ -162,6 +162,8 @@ describe("AsyncAPI multi-level (BESS-shaped)", () => {
           function_code: 3,
           address: 6000,
           ...MODBUS_DEFAULTS,
+          unit: "percent",
+          poll_rate_hz: 1,
         },
         "bms_01.bms_state_of_charge binding mismatch",
       );
@@ -174,6 +176,8 @@ describe("AsyncAPI multi-level (BESS-shaped)", () => {
           function_code: 3,
           address: 7000,
           ...MODBUS_DEFAULTS,
+          unit: "watts",
+          poll_rate_hz: 1,
         },
         "inverter_01.active_power binding mismatch",
       );
@@ -184,6 +188,8 @@ describe("AsyncAPI multi-level (BESS-shaped)", () => {
           function_code: 3,
           address: 7010,
           ...MODBUS_DEFAULTS,
+          unit: "none",
+          poll_rate_hz: null,
         },
         "inverter_01.inverter_state binding mismatch",
       );
@@ -196,6 +202,8 @@ describe("AsyncAPI multi-level (BESS-shaped)", () => {
           function_code: 3,
           address: 5000,
           ...MODBUS_DEFAULTS,
+          unit: "volts",
+          poll_rate_hz: 0.1,
         },
         "cell_001.cell_voltage binding mismatch",
       );
@@ -206,6 +214,8 @@ describe("AsyncAPI multi-level (BESS-shaped)", () => {
           function_code: 3,
           address: 5000,
           ...MODBUS_DEFAULTS,
+          unit: "volts",
+          poll_rate_hz: 0.1,
         },
         "cell_002.cell_voltage binding mismatch",
       );
