@@ -56,28 +56,50 @@ type ConnectionFields = {
 } | null;
 
 /**
+ * Channel-level metadata merged into every protocol-source entry so the
+ * gateway can drive the read loop (`poll_rate_hz`) and pick the right MQTT
+ * topic suffix (`unit`) from a single map entry.
+ */
+type ChannelMeta = {
+  unit: string;
+  poll_rate_hz?: number | null;
+};
+
+/** Fully merged map entry: binding ∪ connection ∪ channel meta. */
+type ProtocolSourceEntry = BindingType & ConnectionFields & ChannelMeta;
+
+/**
  * Collect all binding-bearing measurements and commands from a template,
- * merging in the device's connection (host/port/unit_id) so consumers see
- * the complete protocol-instance picture in one entry.
+ * merging in the device's connection (host/port/unit_id) plus channel meta
+ * (`unit`, `poll_rate_hz`) so consumers see the complete protocol-instance
+ * picture in one entry.
  * @param tpl Validated DeviceTemplate with measurements and commands
  * @param connection Device-level connection block (host/port/unit_id), or null
- * @returns Map of channel name -> binding + connection fields
+ * @returns Map of channel name -> binding + connection + channel meta
  */
 function collectBindings(
   tpl: DeviceTemplateType,
   connection: ConnectionFields,
-): Record<string, BindingType & ConnectionFields> {
-  const out: Record<string, BindingType & ConnectionFields> = {};
+): Record<string, ProtocolSourceEntry> {
+  const out: Record<string, ProtocolSourceEntry> = {};
   const conn = connection ?? ({} as ConnectionFields);
   for (const [name, meas] of Object.entries(tpl.measurements)) {
     if (meas.binding !== null && meas.binding !== undefined) {
-      out[name] = { ...conn, ...meas.binding } as BindingType &
-        ConnectionFields;
+      out[name] = {
+        ...conn,
+        ...meas.binding,
+        unit: meas.unit,
+        poll_rate_hz: meas.poll_rate_hz,
+      } as ProtocolSourceEntry;
     }
   }
   for (const [name, cmd] of Object.entries(tpl.commands)) {
     if (cmd.binding !== null && cmd.binding !== undefined) {
-      out[name] = { ...conn, ...cmd.binding } as BindingType & ConnectionFields;
+      out[name] = {
+        ...conn,
+        ...cmd.binding,
+        unit: cmd.unit,
+      } as ProtocolSourceEntry;
     }
   }
   return out;
