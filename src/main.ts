@@ -3,11 +3,11 @@ import { Logger } from "@nestjs/common";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import { AppModuleWithDatabase } from "./app.module";
 import { loadConfig, setupLogger } from "./config";
-import { seedFromS3 } from "./seed/seed_from_s3";
+import { seedFromFile } from "./seed/seed_from_file";
 
 /**
  * Bootstrap the NestJS application.
- * Loads config, starts the app, fetches + seeds boot DTM (per ADR-003),
+ * Loads config, starts the app, reads + seeds boot DTM (per system_adr §22),
  * mounts Swagger docs, and listens.
  * @example bootstrap() // Starts server with day-1 boot seed
  */
@@ -17,12 +17,7 @@ async function bootstrap(): Promise<void> {
   logger.info(`Running with Config ${JSON.stringify(cfg)}`);
   const app = await NestFactory.create(AppModuleWithDatabase);
 
-  await seedFromS3(
-    app,
-    cfg.bootDtmS3Url,
-    cfg.s3EndpointUrl,
-    new Logger("bootstrap"),
-  );
+  await seedFromFile(app, cfg.bootDtmPath, new Logger("bootstrap"));
 
   const config = new DocumentBuilder()
     .setTitle("NestJS API")

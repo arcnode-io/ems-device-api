@@ -1,23 +1,21 @@
-/** Integration — seedFromS3 against LocalStack S3 + Postgres testcontainers. */
+/** Integration — seedFromFile against a real Postgres testcontainer. */
 
 import "reflect-metadata";
 import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Logger } from "@nestjs/common";
-import {
-  S3Client,
-  CreateBucketCommand,
-  PutObjectCommand,
-} from "@aws-sdk/client-s3";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import * as assert from "assert";
 import { describe, test } from "node:test";
 import { AppModuleWithDatabase } from "../src/app.module";
-import { seedFromS3 } from "../src/seed/seed_from_s3";
+import { seedFromFile } from "../src/seed/seed_from_file";
 import { TEMPLATE_CATALOG } from "../src/templates/templates.module";
 import { TopologyService } from "../src/topology/topology.service";
 import type { DeviceTemplateType } from "../src/templates/template.schema";
-import { startLocalStack, startPostgres } from "./fixtures/containers";
+import { startPostgres } from "./fixtures/containers";
 
 const TEMPLATE_BESS = {
   template: "bess_module_v1",
@@ -59,9 +57,6 @@ const SAMPLE_DTM = {
   templates_used: { bess_module_v1: TEMPLATE_BESS },
 };
 
-const BUCKET = "test-artifacts";
-const KEY = "deployments/sample/dtm.json";
-
 /**
  * Bootstrap a NestJS test app with real Postgres + stubbed template catalog.
  * @returns Initialized NestJS application
@@ -83,36 +78,28 @@ async function bootstrap(): Promise<INestApplication> {
   return moduleRef.createNestApplication().init();
 }
 
-describe("seedFromS3 integration", () => {
-  test("empty DB + S3 object present → topology seeded", async () => {
+/**
+ * Serialize the given DTM body to a fresh temp dtm.json and return its path.
+ * @param body DTM-shaped object to serialize as JSON
+ * @returns Absolute path to the temp file
+ */
+async function writeDtmFile(body: unknown): Promise<string> {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "dtm-"));
+  const file = path.join(dir, "dtm.json");
+  await fs.writeFile(file, JSON.stringify(body), "utf8");
+  return file;
+}
+
+describe("seedFromFile integration", () => {
+  test("empty DB + dtm.json present → topology seeded", async () => {
     // Arrange
     const pg = await startPostgres(undefined, { dbname: "postgres" });
     process.env["DOCUMENT_URL"] = pg.url;
-    const ls = await startLocalStack();
-    const s3 = new S3Client({
-      endpoint: ls.url,
-      forcePathStyle: true,
-      region: "us-east-1",
-      credentials: { accessKeyId: "test", secretAccessKey: "test" },
-    });
-    await s3.send(new CreateBucketCommand({ Bucket: BUCKET }));
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: BUCKET,
-        Key: KEY,
-        Body: JSON.stringify(SAMPLE_DTM),
-      }),
-    );
+    const file = await writeDtmFile(SAMPLE_DTM);
     const app = await bootstrap();
     try {
       // Act
-      await seedFromS3(
-        app,
-        `s3://${BUCKET}/${KEY}`,
-        ls.url,
-        new Logger("seed-test"),
-        s3,
-      );
+      await seedFromFile(app, file, new Logger("seed-test"));
       // Assert — DTM was written to DB
       const service = app.get(TopologyService);
       const latest = await service.getLatest();
@@ -121,7 +108,6 @@ describe("seedFromS3 integration", () => {
     } finally {
       await app.close();
       await pg.stop();
-      await ls.stop();
     }
   });
 
@@ -129,57 +115,36 @@ describe("seedFromS3 integration", () => {
     // Arrange
     const pg = await startPostgres(undefined, { dbname: "postgres" });
     process.env["DOCUMENT_URL"] = pg.url;
-    const ls = await startLocalStack();
-    const s3 = new S3Client({
-      endpoint: ls.url,
-      forcePathStyle: true,
-      region: "us-east-1",
-      credentials: { accessKeyId: "test", secretAccessKey: "test" },
-    });
-    await s3.send(new CreateBucketCommand({ Bucket: BUCKET }));
-    // Upload a different DTM to S3 — should NOT overwrite the pre-seeded one
+    // File on disk has a different DTM — should NOT overwrite the pre-seeded one
     const newDtm = {
       ...SAMPLE_DTM,
       deployment_uuid: "999e4567-e89b-12d3-a456-426614174099",
     };
-    await s3.send(
-      new PutObjectCommand({
-        Bucket: BUCKET,
-        Key: KEY,
-        Body: JSON.stringify(newDtm),
-      }),
-    );
+    const file = await writeDtmFile(newDtm);
     const app = await bootstrap();
     const service = app.get(TopologyService);
     // Pre-seed DB with original DTM (simulates operator-set topology)
     await service.save(SAMPLE_DTM as never);
     try {
       // Act
-      await seedFromS3(
-        app,
-        `s3://${BUCKET}/${KEY}`,
-        ls.url,
-        new Logger("seed-test"),
-        s3,
-      );
-      // Assert — original retained, NOT replaced by S3 contents
+      await seedFromFile(app, file, new Logger("seed-test"));
+      // Assert — original retained, NOT replaced by file contents
       const latest = await service.getLatest();
       assert.equal(latest!.deployment_uuid, SAMPLE_DTM.deployment_uuid);
     } finally {
       await app.close();
       await pg.stop();
-      await ls.stop();
     }
   });
 
-  test("url null → empty topology", async () => {
+  test("path null → empty topology", async () => {
     // Arrange
     const pg = await startPostgres(undefined, { dbname: "postgres" });
     process.env["DOCUMENT_URL"] = pg.url;
     const app = await bootstrap();
     try {
       // Act
-      await seedFromS3(app, null, null, new Logger("seed-test"));
+      await seedFromFile(app, null, new Logger("seed-test"));
       // Assert — nothing written, table still empty
       const service = app.get(TopologyService);
       const latest = await service.getLatest();

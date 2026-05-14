@@ -106,66 +106,40 @@ ems_hmi -> ems_hmi: diff + reconcile topic subs
 
 ## Day-1 Boot
 
-Per [ADR-003](../ems/boot_strategy_adr.md), the API fetches a DTM from S3-compatible storage at startup. One mechanism, four deployment recipes — only the endpoint URL changes.
+Per [system_adr §22](../ems/system_adr.md), the API reads a DTM from a JSON file at the path set in `cfg.yml` at startup. Same code across cloud, ISO, dev, CI — only how the file lands at that path varies.
 
-### Cloud (CFN + ECS Fargate)
+### Cloud (CFN + EC2 + docker-compose)
 
-Set in CFN parameters or task env:
+Set in `cfg.yml` (beta block):
 
 ```yaml
-bootDtmS3Url: s3://arcnode-artifacts/deployments/<deployment_id>/dtm.json
-s3EndpointUrl: ~  # null → real AWS S3
+bootDtmPath: /app/dtm.json
 ```
 
-Task IAM role grants `s3:GetObject` on the artifact bucket.
+EC2 UserData curls `https://arcnode-public/orders/<id>/dtm.json` to `/opt/arcnode/dtm.json`. Compose bind-mounts it read-only into device-api at `/app/dtm.json`.
 
 ### On-prem ISO appliance
 
-Set:
-
-```yaml
-bootDtmS3Url: s3://arcnode-artifacts/deployments/<deployment_id>/dtm.json
-s3EndpointUrl: http://minio:9000
-```
-
-minio is already a daemon in the on-prem stack (per `ems/readme.md` On-Prem Deployment). Bake-time scripts populate the bucket before first boot.
+Same `bootDtmPath: /app/dtm.json`. The ISO bake step writes the file to `/opt/arcnode/dtm.json`; compose bind-mounts it read-only.
 
 ### Dev (docker-compose)
 
-LocalStack at port 4566. Compose file should include LocalStack alongside Postgres:
-
-```yaml
-services:
-  localstack:
-    image: localstack/localstack:3
-    environment:
-      SERVICES: s3
-    ports:
-      - "4566:4566"
-```
-
-Upload a sample DTM:
-
-```bash
-aws --endpoint-url=http://localhost:4566 s3 cp sample-dtm.json s3://arcnode-artifacts/deployments/sample/dtm.json
-```
-
-`cfg.yml`'s `local:` block points `s3EndpointUrl: http://localhost:4566` and `bootDtmS3Url: ~` by default. Set the URL to enable the seed.
+Place a fixture at `dev-fixtures/dtm.json` and bind-mount via the dev compose override. Or leave `bootDtmPath: ~` in `cfg.yml`'s `local:` block and POST DTMs explicitly during dev.
 
 ### Tests / CI
 
-Leave `bootDtmS3Url: ~`. Service boots empty; tests POST DTMs explicitly via `tests/topology.test.ts` patterns.
+Leave `bootDtmPath: ~`. Service boots empty; tests POST DTMs explicitly via `tests/topology.test.ts` patterns.
 
 ### Behavior matrix
 
-| `bootDtmS3Url` | Topology table | Result |
+| `bootDtmPath` | Topology table | Result |
 |---|---|---|
-| set | empty | fetch + seed |
-| set | populated | fetch + skip seed (don't overwrite operator changes) |
+| set | empty | read + seed |
+| set | populated | read + skip seed (don't overwrite operator changes) |
 | null | empty | graceful empty start |
 | null | populated | graceful empty start |
 
-Any fetch/parse/validation/catalog error when URL is set → fatal exit.
+Any read/parse/validation/catalog error when path is set → fatal exit.
 
 ## Local Development Setup
 

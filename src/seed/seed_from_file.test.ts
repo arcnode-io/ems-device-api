@@ -1,10 +1,11 @@
 import { describe, it, mock } from "node:test";
 import { strict as assert } from "node:assert";
-import { S3Client, GetObjectCommand, NoSuchKey } from "@aws-sdk/client-s3";
-import { Readable } from "node:stream";
+import * as fs from "node:fs/promises";
+import * as os from "node:os";
+import * as path from "node:path";
 import { BadRequestException, Logger } from "@nestjs/common";
 import type { INestApplicationContext } from "@nestjs/common";
-import { seedFromS3 } from "./seed_from_s3";
+import { seedFromFile } from "./seed_from_file";
 import type { DtmType } from "../topology/dtm.schema";
 
 const STUB_DTM = {
@@ -27,7 +28,6 @@ function makeLogger(): Logger {
   return new Logger("test");
 }
 
-// cast to unknown first to sidestep TypeScript's strict mock-return-type checks
 /**
  * Wrap a service stub in a minimal INestApplicationContext.
  * @param service Partial service stub to return from app.get()
@@ -38,74 +38,55 @@ function makeApp(service: unknown): INestApplicationContext {
 }
 
 /**
- * Build a minimal S3Client whose send() delegates to a handler.
- * @param handler Synchronous handler called with the S3 command
- * @returns Minimal S3Client stub
+ * Write the given body to a fresh temp dtm.json and return its path.
+ * @param body UTF-8 string body to write
+ * @returns Absolute path to the temp file
  */
-function makeS3Client(handler: (cmd: GetObjectCommand) => unknown): S3Client {
-  return {
-    send: (cmd: GetObjectCommand) => Promise.resolve(handler(cmd)),
-  } as unknown as S3Client;
+async function writeTemp(body: string): Promise<string> {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "dtm-"));
+  const file = path.join(dir, "dtm.json");
+  await fs.writeFile(file, body, "utf8");
+  return file;
 }
 
-/**
- * Wrap a string in a Readable stream for use as a mock S3 Body.
- * @param text UTF-8 string to stream
- * @returns Readable emitting the string as a single Buffer chunk
- */
-function bodyStream(text: string): Readable {
-  return Readable.from([Buffer.from(text, "utf8")]);
-}
-
-describe("seedFromS3", () => {
-  it("url null → skip with info log", async () => {
+describe("seedFromFile", () => {
+  it("path null → skip with info log", async () => {
     const service = { getLatest: mock.fn(), save: mock.fn() };
     const app = makeApp(service);
     const logger = makeLogger();
     const infoSpy = mock.method(logger, "log");
-    await seedFromS3(app, null, null, logger);
+    await seedFromFile(app, null, logger);
     assert.equal(service.getLatest.mock.callCount(), 0);
     assert.equal(service.save.mock.callCount(), 0);
     assert.ok(
       infoSpy.mock.calls.some((call) =>
-        String(call.arguments[0]).includes("no boot_dtm_s3_url"),
+        String(call.arguments[0]).includes("no boot_dtm_path"),
       ),
     );
   });
 
-  it("malformed url → throws", async () => {
+  it("missing file → throws", async () => {
     const app = makeApp({});
     await assert.rejects(
-      () => seedFromS3(app, "not-a-url", null, makeLogger()),
-      /s3:\/\/ url required/,
-    );
-  });
-
-  it("S3 NotFound → throws", async () => {
-    const s3 = makeS3Client(() => {
-      throw new NoSuchKey({ message: "not found", $metadata: {} });
-    });
-    const app = makeApp({});
-    await assert.rejects(
-      () => seedFromS3(app, "s3://bucket/key.json", null, makeLogger(), s3),
-      /not found/i,
+      () => seedFromFile(app, "/nonexistent/path/dtm.json", makeLogger()),
+      /ENOENT/,
     );
   });
 
   it("body invalid JSON → throws", async () => {
-    const s3 = makeS3Client(() => ({ Body: bodyStream("{not json") }));
+    const file = await writeTemp("{not json");
     const app = makeApp({});
     await assert.rejects(
-      () => seedFromS3(app, "s3://bucket/key.json", null, makeLogger(), s3),
+      () => seedFromFile(app, file, makeLogger()),
       SyntaxError,
     );
   });
 
   it("body fails Zod → throws", async () => {
-    const s3 = makeS3Client(() => ({ Body: bodyStream('{"foo":"bar"}') }));
+    const file = await writeTemp('{"foo":"bar"}');
     const app = makeApp({});
     await assert.rejects(
-      () => seedFromS3(app, "s3://bucket/key.json", null, makeLogger(), s3),
+      () => seedFromFile(app, file, makeLogger()),
       /deployment_uuid/,
     );
   });
@@ -143,9 +124,7 @@ describe("seedFromS3", () => {
         },
       },
     };
-    const s3 = makeS3Client(() => ({
-      Body: bodyStream(JSON.stringify(dtmWithUnknownSlug)),
-    }));
+    const file = await writeTemp(JSON.stringify(dtmWithUnknownSlug));
     const service = {
       validateAgainstCatalog: (): never => {
         throw new BadRequestException(
@@ -157,38 +136,34 @@ describe("seedFromS3", () => {
     };
     const app = makeApp(service);
     await assert.rejects(
-      () => seedFromS3(app, "s3://bucket/key.json", null, makeLogger(), s3),
+      () => seedFromFile(app, file, makeLogger()),
       /not in bundled catalog/,
     );
     assert.equal(service.save.mock.callCount(), 0);
   });
 
   it("table empty → service.save called", async () => {
-    const s3 = makeS3Client(() => ({
-      Body: bodyStream(JSON.stringify(STUB_DTM)),
-    }));
+    const file = await writeTemp(JSON.stringify(STUB_DTM));
     const service = {
       validateAgainstCatalog: mock.fn(),
       getLatest: mock.fn(() => Promise.resolve(null)),
       save: mock.fn(() => Promise.resolve({ id: 1 })),
     };
     const app = makeApp(service);
-    await seedFromS3(app, "s3://bucket/key.json", null, makeLogger(), s3);
+    await seedFromFile(app, file, makeLogger());
     assert.equal(service.save.mock.callCount(), 1);
     assert.equal(service.validateAgainstCatalog.mock.callCount(), 1);
   });
 
   it("table populated → service.save NOT called", async () => {
-    const s3 = makeS3Client(() => ({
-      Body: bodyStream(JSON.stringify(STUB_DTM)),
-    }));
+    const file = await writeTemp(JSON.stringify(STUB_DTM));
     const service = {
       validateAgainstCatalog: mock.fn(),
       getLatest: mock.fn(() => Promise.resolve(STUB_DTM as unknown as DtmType)),
       save: mock.fn(),
     };
     const app = makeApp(service);
-    await seedFromS3(app, "s3://bucket/key.json", null, makeLogger(), s3);
+    await seedFromFile(app, file, makeLogger());
     assert.equal(service.save.mock.callCount(), 0);
   });
 });

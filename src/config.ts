@@ -18,8 +18,7 @@ const Config = z.object({
   host: z.string().transform((val) => new Address4(val).address),
   e2e: z.boolean(),
   templateCatalogRoot: z.string(),
-  bootDtmS3Url: z.string().nullable(),
-  s3EndpointUrl: z.string().nullable(),
+  bootDtmPath: z.string().nullable(),
   mqttBrokerUrl: z.string(),
 });
 

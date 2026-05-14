@@ -74,26 +74,6 @@ async function startPostgres(
 }
 
 /**
- * Start a LocalStack S3 container with dynamic port.
- * @returns Container with http:// URL pointing at LocalStack edge port
- */
-async function startLocalStack(): Promise<Container> {
-  const started = await new GenericContainer("localstack/localstack:3")
-    .withExposedPorts(4566)
-    .withEnvironment({ SERVICES: "s3", DEBUG: "0" })
-    .withWaitStrategy(Wait.forLogMessage("Ready."))
-    .start();
-
-  const port = started.getMappedPort(4566);
-  return {
-    host: "localhost",
-    port,
-    url: `http://localhost:${port}`,
-    stop: () => started.stop(),
-  };
-}
-
-/**
  * Start an emqx broker container with dynamic port. MQTT 3.1.1 / 5 on 1883.
  * Anonymous broker — no auth per v1.
  * @returns Container with mqtt:// URL pointing at emqx
@@ -115,5 +95,5 @@ async function startEmqx(): Promise<Container> {
   };
 }
 
-export { startContainer, startPostgres, startLocalStack, startEmqx };
+export { startContainer, startPostgres, startEmqx };
 export type { Container };
