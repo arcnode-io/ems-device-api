@@ -1,4 +1,4 @@
-/** Integration — TopologyService.save broadcasts via emqx. */
+/** Integration — TopologyService.save broadcasts via hivemq. */
 
 import "reflect-metadata";
 import { Test } from "@nestjs/testing";
@@ -10,7 +10,7 @@ import { AppModuleWithDatabase } from "../src/app.module";
 import { TEMPLATE_CATALOG } from "../src/templates/templates.module";
 import { TopologyService } from "../src/topology/topology.service";
 import type { DeviceTemplateType } from "../src/templates/template.schema";
-import { startEmqx, startPostgres } from "./fixtures/containers";
+import { startHivemq, startPostgres } from "./fixtures/containers";
 
 const TEMPLATE_BESS = {
   template: "bess_module_v1",
@@ -90,7 +90,7 @@ async function bootstrap(opts: BootstrapOpts): Promise<{
 
 /**
  * Tagged log line for testcontainer scaffolding visibility.
- * @param tag short tag like "🐳 emqx" / "🐘 pg" / "📡 sub"
+ * @param tag short tag like "🐳 hivemq" / "🐘 pg" / "📡 sub"
  * @param msg what just happened
  */
 function log(tag: string, msg: string): void {
@@ -98,12 +98,12 @@ function log(tag: string, msg: string): void {
 }
 
 describe("MQTT topology_changed broadcast integration", () => {
-  test("save → emqx broadcasts system/topology_changed { ts, version }", async () => {
-    // Arrange — emqx + postgres testcontainers (dynamic ports)
-    const broker = await startEmqx();
+  test("save → hivemq broadcasts system/topology_changed { ts, version }", async () => {
+    // Arrange — hivemq + postgres testcontainers (dynamic ports)
+    const broker = await startHivemq();
     const pg = await startPostgres(undefined, { dbname: "postgres" });
     process.env["DOCUMENT_URL"] = pg.url;
-    log("🐳", `emqx @ ${broker.url} | 🐘 postgres @ ${pg.host}:${pg.port}`);
+    log("🐳", `hivemq @ ${broker.url} | 🐘 postgres @ ${pg.host}:${pg.port}`);
 
     const { app, service } = await bootstrap({
       brokerUrl: broker.url,
