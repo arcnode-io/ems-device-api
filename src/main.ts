@@ -17,7 +17,11 @@ async function bootstrap(): Promise<void> {
   logger.info(`Running with Config ${JSON.stringify(cfg)}`);
   const app = await NestFactory.create(AppModuleWithDatabase);
 
-  await seedFromFile(app, cfg.bootDtmPath, new Logger("bootstrap"));
+  await seedFromFile(
+    app,
+    process.env["BOOT_DTM_PATH"] ?? null,
+    new Logger("bootstrap"),
+  );
 
   const config = new DocumentBuilder()
     .setTitle("NestJS API")

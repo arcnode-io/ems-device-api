@@ -106,40 +106,44 @@ ems_hmi -> ems_hmi: diff + reconcile topic subs
 
 ## Day-1 Boot
 
-Per [system_adr §22](../ems/system_adr.md), the API reads a DTM from a JSON file at the path set in `cfg.yml` at startup. Same code across cloud, ISO, dev, CI — only how the file lands at that path varies.
+Per [system_adr §22](../ems/system_adr.md), the API reads a DTM from a JSON file at the path set in the `BOOT_DTM_PATH` env var at startup. Same code across cloud, ISO, dev, CI — only how the file lands at that path varies.
 
 ### Cloud (CFN + EC2 + docker-compose)
 
-Set in `cfg.yml` (beta block):
+Compose service block:
 
 ```yaml
-bootDtmPath: /app/dtm.json
+device-api:
+  environment:
+    BOOT_DTM_PATH: /app/dtm.json
+  volumes:
+    - /opt/arcnode/dtm.json:/app/dtm.json:ro
 ```
 
-EC2 UserData curls `https://arcnode-public/orders/<id>/dtm.json` to `/opt/arcnode/dtm.json`. Compose bind-mounts it read-only into device-api at `/app/dtm.json`.
+EC2 UserData curls `https://arcnode-public/orders/<id>/dtm.json` to `/opt/arcnode/dtm.json` before `docker compose up`.
 
 ### On-prem ISO appliance
 
-Same `bootDtmPath: /app/dtm.json`. The ISO bake step writes the file to `/opt/arcnode/dtm.json`; compose bind-mounts it read-only.
+Same compose block. ISO bake step writes the file to `/opt/arcnode/dtm.json`.
 
 ### Dev (docker-compose)
 
-Place a fixture at `dev-fixtures/dtm.json` and bind-mount via the dev compose override. Or leave `bootDtmPath: ~` in `cfg.yml`'s `local:` block and POST DTMs explicitly during dev.
+Place a fixture at `dev-fixtures/dtm.json` and use the dev compose override that mounts it. Or omit `BOOT_DTM_PATH` and POST DTMs explicitly during dev.
 
 ### Tests / CI
 
-Leave `bootDtmPath: ~`. Service boots empty; tests POST DTMs explicitly via `tests/topology.test.ts` patterns.
+Omit `BOOT_DTM_PATH`. Service boots empty; tests POST DTMs explicitly via `tests/topology.test.ts` patterns.
 
 ### Behavior matrix
 
-| `bootDtmPath` | Topology table | Result |
+| `BOOT_DTM_PATH` | Topology table | Result |
 |---|---|---|
 | set | empty | read + seed |
 | set | populated | read + skip seed (don't overwrite operator changes) |
-| null | empty | graceful empty start |
-| null | populated | graceful empty start |
+| unset | empty | graceful empty start |
+| unset | populated | graceful empty start |
 
-Any read/parse/validation/catalog error when path is set → fatal exit.
+Any read/parse/validation/catalog error when env var is set → fatal exit.
 
 ## Local Development Setup
 

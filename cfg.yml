@@ -4,7 +4,6 @@ local:
   host: 127.0.0.1
   e2e: false
   templateCatalogRoot: device_templates
-  bootDtmPath: ~
   mqttBrokerUrl: mqtt://localhost:1883
 
 beta:
@@ -13,5 +12,4 @@ beta:
   host: 0.0.0.0
   e2e: true
   templateCatalogRoot: /app/device_templates
-  bootDtmPath: /app/dtm.json
   mqttBrokerUrl: mqtt://emqx:1883
