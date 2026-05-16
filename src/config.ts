@@ -19,6 +19,7 @@ const Config = z.object({
   e2e: z.boolean(),
   templateCatalogRoot: z.string(),
   mqttBrokerUrl: z.string(),
+  edpApiUrl: z.url(),
 });
 
 export type ConfigType = z.infer<typeof Config>;

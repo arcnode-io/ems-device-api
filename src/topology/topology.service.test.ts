@@ -14,6 +14,7 @@ import type { Repository } from "typeorm";
 import type { Topology } from "./topology.entity";
 
 import type { MqttClientService } from "../mqtt/mqtt.client.service";
+import type { SldSvgRendererService } from "./sld_svg_renderer.service";
 
 /** Stub — validateAgainstCatalog never touches the repo. */
 const stubRepo = {} as Repository<Topology>;
@@ -22,6 +23,11 @@ const stubRepo = {} as Repository<Topology>;
 const stubMqtt = {
   publishTopologyChanged: () => undefined,
 } as unknown as MqttClientService;
+
+/** Stub — most tests don't exercise the SLD render path. */
+const stubRenderer = {
+  render: () => Promise.resolve(Buffer.from("")),
+} as unknown as SldSvgRendererService;
 
 /**
  * Minimal DtmType fixture — only templates_used matters for catalog validation.
@@ -55,7 +61,7 @@ describe("TopologyService.validateAgainstCatalog", () => {
       revenue_meter: {} as DeviceTemplateType,
       bess_module_v1: {} as DeviceTemplateType,
     };
-    const svc = new TopologyService(stubRepo, catalog, stubMqtt);
+    const svc = new TopologyService(stubRepo, catalog, stubMqtt, stubRenderer);
     const dtm = makeDtm(["revenue_meter", "bess_module_v1"]);
 
     // Act / Assert — must not throw
@@ -67,7 +73,7 @@ describe("TopologyService.validateAgainstCatalog", () => {
     const catalog: Record<string, DeviceTemplateType> = {
       revenue_meter: {} as DeviceTemplateType,
     };
-    const svc = new TopologyService(stubRepo, catalog, stubMqtt);
+    const svc = new TopologyService(stubRepo, catalog, stubMqtt, stubRenderer);
     const dtm = makeDtm(["revenue_meter", "unknown_template"]);
 
     // Act / Assert
@@ -84,7 +90,7 @@ describe("TopologyService.validateAgainstCatalog", () => {
   it("throws BadRequestException listing all unknown slugs", () => {
     // Arrange
     const catalog: Record<string, DeviceTemplateType> = {};
-    const svc = new TopologyService(stubRepo, catalog, stubMqtt);
+    const svc = new TopologyService(stubRepo, catalog, stubMqtt, stubRenderer);
     const dtm = makeDtm(["foo_tpl", "bar_tpl"]);
 
     // Act / Assert
@@ -105,7 +111,7 @@ describe("TopologyService.validateAgainstCatalog", () => {
     const catalog: Record<string, DeviceTemplateType> = {
       revenue_meter: {} as DeviceTemplateType,
     };
-    const svc = new TopologyService(stubRepo, catalog, stubMqtt);
+    const svc = new TopologyService(stubRepo, catalog, stubMqtt, stubRenderer);
     const dtm = makeDtm([]);
 
     // Act / Assert — empty templates_used has no unknown slugs
@@ -139,7 +145,7 @@ describe("TopologyService.save — monotonic version bump", () => {
         Promise.resolve({ ...row, id: 1, receivedAt: new Date() }),
       ),
     };
-    const svc = new TopologyService(repo as never, {}, stubMqtt);
+    const svc = new TopologyService(repo as never, {}, stubMqtt, stubRenderer);
     const row = await svc.save(baseDtm() as never);
     assert.equal((row as { version: string }).version, "1.0.0");
   });
@@ -153,7 +159,7 @@ describe("TopologyService.save — monotonic version bump", () => {
         Promise.resolve({ ...row, id: 2, receivedAt: new Date() }),
       ),
     };
-    const svc = new TopologyService(repo as never, {}, stubMqtt);
+    const svc = new TopologyService(repo as never, {}, stubMqtt, stubRenderer);
     const row = await svc.save(baseDtm() as never);
     assert.equal((row as { version: string }).version, "1.0.1");
   });
@@ -167,9 +173,81 @@ describe("TopologyService.save — monotonic version bump", () => {
         Promise.resolve({ ...row, id: 42, receivedAt: new Date() }),
       ),
     };
-    const svc = new TopologyService(repo as never, {}, stubMqtt);
+    const svc = new TopologyService(repo as never, {}, stubMqtt, stubRenderer);
     const row = await svc.save(baseDtm() as never);
     assert.equal((row as { version: string }).version, "1.0.42");
+  });
+});
+
+describe("TopologyService.getLatestSld — lazy render + cache", () => {
+  /**
+   * Minimal Topology row stub.
+   * @param version Semver assigned to the row.
+   * @returns Topology-shaped row with the given version.
+   */
+  function row(version: string): {
+    dtm: Record<string, unknown>;
+    version: string;
+    id: number;
+    receivedAt: Date;
+  } {
+    return { dtm: {}, version, id: 1, receivedAt: new Date() };
+  }
+
+  it("returns null when no DTM has been submitted", async () => {
+    // Arrange
+    const repo = { findOne: mock.fn(() => Promise.resolve(null)) };
+    const svc = new TopologyService(repo as never, {}, stubMqtt, stubRenderer);
+
+    // Act
+    const result = await svc.getLatestSld();
+
+    // Assert
+    assert.equal(result, null);
+  });
+
+  it("calls renderer on first GET, caches, skips renderer on second GET", async () => {
+    // Arrange — repo always returns the same version row
+    const repo = { findOne: mock.fn(() => Promise.resolve(row("1.0.0"))) };
+    const renderer = {
+      render: mock.fn(() => Promise.resolve(Buffer.from("<svg id=cached/>"))),
+    } as unknown as SldSvgRendererService;
+    const svc = new TopologyService(repo as never, {}, stubMqtt, renderer);
+
+    // Act
+    const first = await svc.getLatestSld();
+    const second = await svc.getLatestSld();
+
+    // Assert — bytes match + renderer called exactly once
+    assert.equal(first?.toString("utf8"), "<svg id=cached/>");
+    assert.equal(second?.toString("utf8"), "<svg id=cached/>");
+    const renderMock = (
+      renderer.render as unknown as { mock: { callCount: () => number } }
+    ).mock;
+    assert.equal(renderMock.callCount(), 1);
+  });
+
+  it("re-renders when DTM version advances (cache stale)", async () => {
+    // Arrange — repo returns v1 then v2
+    let version = "1.0.0";
+    const repo = { findOne: mock.fn(() => Promise.resolve(row(version))) };
+    const renderer = {
+      render: mock.fn(() => Promise.resolve(Buffer.from(`svg@${version}`))),
+    } as unknown as SldSvgRendererService;
+    const svc = new TopologyService(repo as never, {}, stubMqtt, renderer);
+
+    // Act
+    const first = await svc.getLatestSld();
+    version = "1.0.1";
+    const second = await svc.getLatestSld();
+
+    // Assert
+    assert.equal(first?.toString("utf8"), "svg@1.0.0");
+    assert.equal(second?.toString("utf8"), "svg@1.0.1");
+    const renderMock = (
+      renderer.render as unknown as { mock: { callCount: () => number } }
+    ).mock;
+    assert.equal(renderMock.callCount(), 2);
   });
 });
 
@@ -204,7 +282,7 @@ describe("TopologyService.save — MQTT broadcast", () => {
     const mqtt = {
       publishTopologyChanged: publishMock,
     } as unknown as MqttClientService;
-    const svc = new TopologyService(repo as never, {}, mqtt);
+    const svc = new TopologyService(repo as never, {}, mqtt, stubRenderer);
     // Act
     await svc.save(baseDtm() as never);
     // Assert
@@ -226,7 +304,7 @@ describe("TopologyService.save — MQTT broadcast", () => {
     const mqtt = {
       publishTopologyChanged: publishMock,
     } as unknown as MqttClientService;
-    const svc = new TopologyService(repo as never, {}, mqtt);
+    const svc = new TopologyService(repo as never, {}, mqtt, stubRenderer);
     // Act
     await svc.save(baseDtm() as never);
     // Assert
@@ -245,7 +323,7 @@ describe("TopologyService.getLatestRow", () => {
       receivedAt: new Date(),
     };
     const repo = { findOne: mock.fn(() => Promise.resolve(stored)) };
-    const svc = new TopologyService(repo as never, {}, stubMqtt);
+    const svc = new TopologyService(repo as never, {}, stubMqtt, stubRenderer);
     // Act
     const row = await svc.getLatestRow();
     // Assert
@@ -255,7 +333,7 @@ describe("TopologyService.getLatestRow", () => {
   it("returns null when no rows", async () => {
     // Arrange
     const repo = { findOne: mock.fn(() => Promise.resolve(null)) };
-    const svc = new TopologyService(repo as never, {}, stubMqtt);
+    const svc = new TopologyService(repo as never, {}, stubMqtt, stubRenderer);
     // Act
     const row = await svc.getLatestRow();
     // Assert

@@ -11,6 +11,8 @@ import type { DtmType } from "./dtm.schema";
 import { TEMPLATE_CATALOG } from "../templates/templates.module";
 import type { DeviceTemplateType } from "../templates/template.schema";
 import { MqttClientService } from "../mqtt/mqtt.client.service";
+import { SldSvgRendererService } from "./sld_svg_renderer.service";
+import { projectDtmToView, type DtmView } from "./topology.view";
 
 /**
  * Compute the next monotonic version per ADR-002 §10 (MVP simplification).
@@ -41,11 +43,18 @@ function nextMonotonicVersion(prev: string | null): string {
 export class TopologyService {
   private readonly logger = new Logger(TopologyService.name);
 
+  // In-memory SLD SVG cache keyed by DTM version. Lazy: populated on the
+  // first GET /topology/sld.svg after each save or process boot.
+  private cachedSvg: Buffer | null = null;
+  private cachedSvgVersion: string | null = null;
+
   /**
-   * Wires the TypeORM repository, bundled template catalog, and MQTT client.
+   * Wires the TypeORM repository, bundled template catalog, MQTT client,
+   * and SLD SVG renderer.
    * @param repo TypeORM repository for Topology rows
    * @param catalog Slug-keyed device template catalog loaded at startup
    * @param mqtt MQTT client for system/topology_changed broadcasts
+   * @param sldRenderer Wraps edp-api `POST /edp-api/sld-hmi-svg` for re-render
    */
   constructor(
     @InjectRepository(Topology)
@@ -53,6 +62,7 @@ export class TopologyService {
     @Inject(TEMPLATE_CATALOG)
     private readonly catalog: Record<string, DeviceTemplateType>,
     private readonly mqtt: MqttClientService,
+    private readonly sldRenderer: SldSvgRendererService,
   ) {}
 
   /**
@@ -121,5 +131,35 @@ export class TopologyService {
       where: {},
       order: { receivedAt: "DESC" },
     });
+  }
+
+  /**
+   * Return the sanitized DTM projection for HMI consumption per system_adr §22.
+   * Strips gateway-only fields; inlines per-template measurement metadata.
+   * @returns The latest DTM projected to the HMI-facing view, or null
+   */
+  async getLatestView(): Promise<DtmView | null> {
+    const dtm = await this.getLatest();
+    return dtm === null ? null : projectDtmToView(dtm);
+  }
+
+  /**
+   * Return the SLD HMI SVG bytes for the latest DTM, calling edp-api to
+   * render when the cache is empty or stale. Lazy render keeps `POST /topology`
+   * decoupled from edp-api availability; first GET after each save or
+   * process restart pays the render latency.
+   * @returns SVG bytes, or null if no DTM has been submitted yet
+   * @throws ServiceUnavailableException if edp-api is unreachable on render
+   */
+  async getLatestSld(): Promise<Buffer | null> {
+    const row = await this.getLatestRow();
+    if (row === null) return null;
+    if (this.cachedSvg !== null && this.cachedSvgVersion === row.version) {
+      return this.cachedSvg;
+    }
+    const svg = await this.sldRenderer.render(row.dtm as unknown as DtmType);
+    this.cachedSvg = svg;
+    this.cachedSvgVersion = row.version;
+    return svg;
   }
 }

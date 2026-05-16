@@ -5,6 +5,7 @@ local:
   e2e: false
   templateCatalogRoot: device_templates
   mqttBrokerUrl: mqtt://localhost:1883
+  edpApiUrl: http://localhost:8000
 
 beta:
   logLevel: INFO
@@ -13,3 +14,4 @@ beta:
   e2e: true
   templateCatalogRoot: /app/device_templates
   mqttBrokerUrl: mqtt://hivemq:1883
+  edpApiUrl: http://edp-api:8000

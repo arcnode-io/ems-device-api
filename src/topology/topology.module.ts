@@ -3,6 +3,7 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { Topology } from "./topology.entity";
 import { TopologyService } from "./topology.service";
 import { TopologyController } from "./topology.controller";
+import { SldSvgRendererService } from "./sld_svg_renderer.service";
 import { TemplatesModule } from "../templates/templates.module";
 import { MqttModule } from "../mqtt/mqtt.module";
 
@@ -10,7 +11,7 @@ import { MqttModule } from "../mqtt/mqtt.module";
 @Module({
   imports: [TypeOrmModule.forFeature([Topology]), TemplatesModule, MqttModule],
   controllers: [TopologyController],
-  providers: [TopologyService],
+  providers: [TopologyService, SldSvgRendererService],
   exports: [TopologyService],
 })
 export class TopologyModule {}
