@@ -116,6 +116,14 @@ describe("seedFromFile", () => {
             volt: {
               unit: "volts",
               type: "float",
+              iec_61850_ref: "MMXU.PhV.phsA",
+              bounds: { min: 0, max: 500, nominal: 277 },
+              thresholds: {
+                warn_min: 250,
+                warn_max: 300,
+                alarm_min: 230,
+                alarm_max: 320,
+              },
               binding: { protocol: "modbus_tcp", function_code: 4, address: 1 },
             },
           },

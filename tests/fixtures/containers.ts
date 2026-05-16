@@ -82,7 +82,9 @@ async function startHivemq(): Promise<Container> {
   const started = await new GenericContainer("hivemq/hivemq-ce:latest")
     .withExposedPorts(1883)
     .withWaitStrategy(
-      Wait.forLogMessage("Started TCP Listener on address 0.0.0.0 and on port 1883."),
+      Wait.forLogMessage(
+        "Started TCP Listener on address 0.0.0.0 and on port 1883.",
+      ),
     )
     .start();
 

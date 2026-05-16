@@ -169,15 +169,29 @@ const modbusBinding = {
   address: 100,
 };
 
+const baseBounds = { min: 0, max: 1000, nominal: 500 };
+const baseThresholds = {
+  warn_min: 100,
+  warn_max: 900,
+  alarm_min: 50,
+  alarm_max: 950,
+};
+
 const baseMeasurementWithBinding = {
   unit: "W",
   type: "float" as const,
+  iec_61850_ref: "MMXU.W",
+  bounds: baseBounds,
+  thresholds: baseThresholds,
   binding: modbusBinding,
 };
 
 const baseMeasurementWithPublisher = {
   unit: "W",
   type: "float" as const,
+  iec_61850_ref: "MMXU.W",
+  bounds: baseBounds,
+  thresholds: baseThresholds,
   publisher: "line_controller" as const,
 };
 
@@ -201,7 +215,13 @@ describe("Measurement", () => {
   });
 
   it("rejects measurement with neither binding nor publisher", () => {
-    const msg = fail(Measurement, { unit: "W", type: "float" });
+    const msg = fail(Measurement, {
+      unit: "W",
+      type: "float",
+      iec_61850_ref: "MMXU.W",
+      bounds: baseBounds,
+      thresholds: baseThresholds,
+    });
     assert.ok(msg.includes("exactly one of binding/publisher"), `got: ${msg}`);
   });
 
@@ -209,6 +229,7 @@ describe("Measurement", () => {
     const msg = fail(Measurement, {
       unit: "mode",
       type: "enum",
+      iec_61850_ref: "XCBR.Pos.stVal",
       binding: modbusBinding,
     });
     assert.ok(msg.includes("values required for type=enum"), `got: ${msg}`);
@@ -218,6 +239,7 @@ describe("Measurement", () => {
     const result = ok(Measurement, {
       unit: "mode",
       type: "enum",
+      iec_61850_ref: "XCBR.Pos.stVal",
       values: { 1: "AUTO", 2: "MANUAL" },
       binding: modbusBinding,
     });
@@ -228,6 +250,7 @@ describe("Measurement", () => {
     const result = ok(Measurement, {
       unit: "mode",
       type: "enum",
+      iec_61850_ref: "XCBR.Pos.stVal",
       values: { 1: "AUTO", 2: "MANUAL" },
       binding: modbusBinding,
     });
@@ -239,6 +262,9 @@ describe("Measurement", () => {
     const msg = fail(Measurement, {
       unit: "W",
       type: "float",
+      iec_61850_ref: "MMXU.W",
+      bounds: baseBounds,
+      thresholds: baseThresholds,
       values: { 1: "A" },
       binding: modbusBinding,
     });
@@ -251,6 +277,115 @@ describe("Measurement", () => {
       unknown_extra: "oops",
     });
     assert.ok(msg.length > 0);
+  });
+
+  it("type=float requires iec_61850_ref", () => {
+    const msg = fail(Measurement, {
+      unit: "W",
+      type: "float",
+      bounds: baseBounds,
+      thresholds: baseThresholds,
+      binding: modbusBinding,
+    });
+    assert.ok(msg.length > 0);
+  });
+
+  it("type=float requires bounds", () => {
+    const msg = fail(Measurement, {
+      unit: "W",
+      type: "float",
+      iec_61850_ref: "MMXU.W",
+      thresholds: baseThresholds,
+      binding: modbusBinding,
+    });
+    assert.ok(msg.includes("bounds required for type=float"), `got: ${msg}`);
+  });
+
+  it("type=float requires thresholds", () => {
+    const msg = fail(Measurement, {
+      unit: "W",
+      type: "float",
+      iec_61850_ref: "MMXU.W",
+      bounds: baseBounds,
+      binding: modbusBinding,
+    });
+    assert.ok(
+      msg.includes("thresholds required for type=float"),
+      `got: ${msg}`,
+    );
+  });
+
+  it("type=bool does NOT require bounds/thresholds", () => {
+    const result = ok(Measurement, {
+      unit: "none",
+      type: "bool",
+      iec_61850_ref: "XCBR.Pos.stVal",
+      binding: modbusBinding,
+    });
+    assert.equal(result.type, "bool");
+  });
+
+  it("type=enum does NOT require bounds/thresholds", () => {
+    const result = ok(Measurement, {
+      unit: "none",
+      type: "enum",
+      iec_61850_ref: "XCBR.Pos.stVal",
+      values: { 0: "OPEN", 1: "CLOSED" },
+      binding: modbusBinding,
+    });
+    assert.equal(result.type, "enum");
+  });
+
+  it("bounds forbidden for type=bool", () => {
+    const msg = fail(Measurement, {
+      unit: "none",
+      type: "bool",
+      iec_61850_ref: "XCBR.Pos.stVal",
+      bounds: baseBounds,
+      binding: modbusBinding,
+    });
+    assert.ok(msg.includes("bounds forbidden for non-float"), `got: ${msg}`);
+  });
+
+  it("bounds.min must be < bounds.max", () => {
+    const msg = fail(Measurement, {
+      unit: "W",
+      type: "float",
+      iec_61850_ref: "MMXU.W",
+      bounds: { min: 100, max: 50, nominal: 75 },
+      thresholds: baseThresholds,
+      binding: modbusBinding,
+    });
+    assert.ok(msg.includes("bounds.min must be less"), `got: ${msg}`);
+  });
+
+  it("bounds.nominal must lie within [min, max]", () => {
+    const msg = fail(Measurement, {
+      unit: "W",
+      type: "float",
+      iec_61850_ref: "MMXU.W",
+      bounds: { min: 0, max: 100, nominal: 200 },
+      thresholds: baseThresholds,
+      binding: modbusBinding,
+    });
+    assert.ok(msg.includes("bounds.nominal"), `got: ${msg}`);
+  });
+
+  it("thresholds.alarm_min must be ≤ warn_min", () => {
+    const msg = fail(Measurement, {
+      unit: "W",
+      type: "float",
+      iec_61850_ref: "MMXU.W",
+      bounds: baseBounds,
+      thresholds: {
+        warn_min: 100,
+        warn_max: 900,
+        alarm_min: 200,
+        alarm_max: 950,
+      },
+      binding: modbusBinding,
+    });
+    assert.ok(msg.includes("alarm_min"), `got: ${msg}`);
   });
 });
 
@@ -353,6 +488,14 @@ const minimalLeaf = {
     soc: {
       unit: "%",
       type: "float",
+      iec_61850_ref: "ZBAT.BatChaSt",
+      bounds: { min: 0, max: 100, nominal: 50 },
+      thresholds: {
+        warn_min: 10,
+        warn_max: 90,
+        alarm_min: 5,
+        alarm_max: 95,
+      },
       binding: modbusBinding,
     },
   },
@@ -366,6 +509,14 @@ const minimalModule = {
     soc: {
       unit: "%",
       type: "float",
+      iec_61850_ref: "ZBAT.BatChaSt",
+      bounds: { min: 0, max: 100, nominal: 50 },
+      thresholds: {
+        warn_min: 10,
+        warn_max: 90,
+        alarm_min: 5,
+        alarm_max: 95,
+      },
       publisher: "line_controller",
     },
   },

@@ -48,13 +48,53 @@ const ValuesRecord = z.record(
   z.string(),
 );
 
+// Physical-range envelope for a float measurement. Drives sim driver random
+// walks and Reading tone derivation. min < nominal < max enforced.
+export const Bounds = z
+  .strictObject({
+    min: z.number(),
+    max: z.number(),
+    nominal: z.number(),
+  })
+  .refine((b) => b.min < b.max, {
+    message: "bounds.min must be less than bounds.max",
+  })
+  .refine((b) => b.min <= b.nominal && b.nominal <= b.max, {
+    message: "bounds.nominal must lie within [min, max]",
+  });
+
+// Alarm-threshold envelope for a float measurement. Drives chart MIN/MAX
+// threshold lines (Rule 3.6) and Reading tone derivation. warn band is wider
+// than alarm band; both centered around bounds.nominal.
+export const Thresholds = z
+  .strictObject({
+    warn_min: z.number(),
+    warn_max: z.number(),
+    alarm_min: z.number(),
+    alarm_max: z.number(),
+  })
+  .refine((t) => t.alarm_min <= t.warn_min, {
+    message: "thresholds.alarm_min must be ≤ thresholds.warn_min",
+  })
+  .refine((t) => t.warn_max <= t.alarm_max, {
+    message: "thresholds.warn_max must be ≤ thresholds.alarm_max",
+  })
+  .refine((t) => t.warn_min <= t.warn_max, {
+    message: "thresholds.warn_min must be ≤ thresholds.warn_max",
+  });
+
+export type BoundsType = z.infer<typeof Bounds>;
+export type ThresholdsType = z.infer<typeof Thresholds>;
+
 export const Measurement = z
   .strictObject({
     unit: z.string(),
     type: z.enum(["float", "bool", "enum"]),
     poll_rate_hz: z.number().nullable().default(null),
     display_name_default: z.string().nullable().default(null),
-    iec_61850_ref: z.string().nullable().default(null),
+    iec_61850_ref: z.string(),
+    bounds: Bounds.nullable().default(null),
+    thresholds: Thresholds.nullable().default(null),
     values: ValuesRecord.nullable().default(null),
     binding: Binding.nullable().default(null),
     publisher: PublisherSchema.nullable().default(null),
@@ -67,6 +107,18 @@ export const Measurement = z
   })
   .refine((meas) => !(meas.type !== "enum" && meas.values !== null), {
     message: "values forbidden for non-enum type",
+  })
+  .refine((meas) => !(meas.type === "float" && meas.bounds === null), {
+    message: "bounds required for type=float",
+  })
+  .refine((meas) => !(meas.type === "float" && meas.thresholds === null), {
+    message: "thresholds required for type=float",
+  })
+  .refine((meas) => !(meas.type !== "float" && meas.bounds !== null), {
+    message: "bounds forbidden for non-float type",
+  })
+  .refine((meas) => !(meas.type !== "float" && meas.thresholds !== null), {
+    message: "thresholds forbidden for non-float type",
   });
 
 // ---------------------------------------------------------------------------

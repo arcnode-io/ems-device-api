@@ -61,6 +61,14 @@ const modbusBinding = {
   address: 100,
 };
 
+const socBounds = { min: 0, max: 100, nominal: 50 };
+const socThresholds = {
+  warn_min: 10,
+  warn_max: 90,
+  alarm_min: 5,
+  alarm_max: 95,
+};
+
 const minimalLeafTemplate = {
   template: "bess_leaf",
   kind: "leaf" as const,
@@ -69,7 +77,14 @@ const minimalLeafTemplate = {
   model: "X1",
   description: "Battery leaf device",
   measurements: {
-    soc: { unit: "%", type: "float" as const, binding: modbusBinding },
+    soc: {
+      unit: "%",
+      type: "float" as const,
+      iec_61850_ref: "ZBAT.BatChaSt",
+      bounds: socBounds,
+      thresholds: socThresholds,
+      binding: modbusBinding,
+    },
   },
 };
 
@@ -81,6 +96,9 @@ const minimalModuleTemplate = {
     soc: {
       unit: "%",
       type: "float" as const,
+      iec_61850_ref: "ZBAT.BatChaSt",
+      bounds: socBounds,
+      thresholds: socThresholds,
       publisher: "line_controller" as const,
     },
   },
