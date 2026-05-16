@@ -85,7 +85,7 @@ The spec serves two purposes at different times:
 
 Message types are compiled. Topic paths are fetched.
 
-When the topology changes at runtime (device added, sensor goes offline, DTM re-provisioned), device-api publishes to `system/topology_changed` with `{ ts, version }` where `version` is monotonically bumped per ADR-002 §10. Gateway, line-controller, and HMI subscribe to this topic — on receipt they re-fetch and diff against their current subscriptions.
+When the topology changes at runtime (device added, sensor goes offline, DTM re-provisioned), device-api publishes to `system/topology_changed` with `{ ts, version }` where `version` is monotonically bumped per ADR-002 §10. Gateway, operating-envelope, and HMI subscribe to this topic — on receipt they re-fetch and diff against their current subscriptions.
 
 ```plantuml
 participant device_api
