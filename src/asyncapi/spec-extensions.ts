@@ -126,7 +126,9 @@ function resolveDeviceIdPlaceholder(
   if (binding.protocol !== "synthetic") return binding;
   return {
     ...binding,
-    inputs: binding.inputs.map((t) => t.replace(/\{device_id\}/g, deviceId)),
+    inputs: binding.inputs.map((topic) =>
+      topic.replace(/\{device_id\}/g, deviceId),
+    ),
   };
 }
 

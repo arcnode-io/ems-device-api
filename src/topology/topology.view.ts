@@ -131,9 +131,9 @@ function projectDevice(dev: DeviceType): DeviceView {
   const extras: Record<string, MeasurementView> | null =
     dev.extra_measurements != null
       ? Object.fromEntries(
-          Object.entries(dev.extra_measurements).map(([k, v]) => [
-            k,
-            projectMeasurement(v),
+          Object.entries(dev.extra_measurements).map(([name, meas]) => [
+            name,
+            projectMeasurement(meas),
           ]),
         )
       : null;

@@ -57,10 +57,10 @@ export const Bounds = z
     max: z.number(),
     nominal: z.number(),
   })
-  .refine((b) => b.min < b.max, {
+  .refine((bounds) => bounds.min < bounds.max, {
     message: "bounds.min must be less than bounds.max",
   })
-  .refine((b) => b.min <= b.nominal && b.nominal <= b.max, {
+  .refine((bounds) => bounds.min <= bounds.nominal && bounds.nominal <= bounds.max, {
     message: "bounds.nominal must lie within [min, max]",
   });
 
@@ -74,13 +74,13 @@ export const Thresholds = z
     alarm_min: z.number(),
     alarm_max: z.number(),
   })
-  .refine((t) => t.alarm_min <= t.warn_min, {
+  .refine((thresh) => thresh.alarm_min <= thresh.warn_min, {
     message: "thresholds.alarm_min must be ≤ thresholds.warn_min",
   })
-  .refine((t) => t.warn_max <= t.alarm_max, {
+  .refine((thresh) => thresh.warn_max <= thresh.alarm_max, {
     message: "thresholds.warn_max must be ≤ thresholds.alarm_max",
   })
-  .refine((t) => t.warn_min <= t.warn_max, {
+  .refine((thresh) => thresh.warn_min <= thresh.warn_max, {
     message: "thresholds.warn_min must be ≤ thresholds.warn_max",
   });
 
