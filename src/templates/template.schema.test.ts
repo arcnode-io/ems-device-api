@@ -64,9 +64,10 @@ describe("TemplateKind", () => {
 });
 
 describe("Publisher", () => {
-  it("has line_controller and analyst values", () => {
+  it("has line_controller, analyst, and gateway values", () => {
     assert.equal(Publisher.LINE_CONTROLLER, "line_controller");
     assert.equal(Publisher.ANALYST, "analyst");
+    assert.equal(Publisher.GATEWAY, "gateway");
   });
 });
 
@@ -112,6 +113,51 @@ describe("Binding", () => {
       point_type: "analog_input",
     });
     assert.equal(result.protocol, "dnp3_tcp");
+  });
+
+  it("Dnp3Binding: variation defaults to null (optional audit metadata)", () => {
+    const result = ok(Binding, {
+      protocol: "dnp3_tcp",
+      point_index: 0,
+      point_type: "analog_input",
+    });
+    if (result.protocol !== "dnp3_tcp") throw new Error("expected dnp3_tcp");
+    assert.equal(result.variation, null);
+  });
+
+  it("Dnp3Binding: accepts explicit variation (e.g. Group 30 Var 5 = float)", () => {
+    const result = ok(Binding, {
+      protocol: "dnp3_tcp",
+      point_index: 0,
+      point_type: "analog_input",
+      variation: 5,
+    });
+    if (result.protocol !== "dnp3_tcp") throw new Error("expected dnp3_tcp");
+    assert.equal(result.variation, 5);
+  });
+
+  it("parses SyntheticBinding", () => {
+    const result = ok(Binding, {
+      protocol: "synthetic",
+      formula: "subtract",
+      inputs: [
+        "sites/{site_id}/devices/operating_envelope/measurements/import_limit/watts",
+        "sites/{site_id}/devices/{device_id}/measurements/active_power/watts",
+      ],
+    });
+    assert.equal(result.protocol, "synthetic");
+    if (result.protocol !== "synthetic") throw new Error("expected synthetic");
+    assert.equal(result.formula, "subtract");
+    assert.equal(result.inputs.length, 2);
+  });
+
+  it("SyntheticBinding: rejects formula outside enum", () => {
+    const msg = fail(Binding, {
+      protocol: "synthetic",
+      formula: "divide",
+      inputs: ["a", "b"],
+    });
+    assert.ok(msg.length > 0);
   });
 
   it("parses SnmpBinding", () => {
@@ -223,6 +269,60 @@ describe("Measurement", () => {
       thresholds: baseThresholds,
     });
     assert.ok(msg.includes("exactly one of binding/publisher"), `got: ${msg}`);
+  });
+
+  it("synthetic binding requires publisher=gateway", () => {
+    const msg = fail(Measurement, {
+      unit: "W",
+      type: "float",
+      iec_61850_ref: "MMXU.W",
+      bounds: baseBounds,
+      thresholds: baseThresholds,
+      binding: {
+        protocol: "synthetic",
+        formula: "subtract",
+        inputs: ["a", "b"],
+      },
+    });
+    // publisher omitted => fails the synthetic+gateway requirement
+    assert.ok(msg.length > 0, `expected validation error, got: ${msg}`);
+  });
+
+  it("synthetic binding rejects non-gateway publisher", () => {
+    const msg = fail(Measurement, {
+      unit: "W",
+      type: "float",
+      iec_61850_ref: "MMXU.W",
+      bounds: baseBounds,
+      thresholds: baseThresholds,
+      binding: {
+        protocol: "synthetic",
+        formula: "subtract",
+        inputs: ["a", "b"],
+      },
+      publisher: "line_controller",
+    });
+    assert.ok(msg.length > 0, `expected validation error, got: ${msg}`);
+  });
+
+  it("accepts synthetic binding with publisher=gateway", () => {
+    const result = ok(Measurement, {
+      unit: "W",
+      type: "float",
+      iec_61850_ref: "MMXU.W",
+      bounds: baseBounds,
+      thresholds: baseThresholds,
+      binding: {
+        protocol: "synthetic",
+        formula: "subtract",
+        inputs: ["a", "b"],
+      },
+      publisher: "gateway",
+    });
+    assert.equal(result.publisher, "gateway");
+    if (result.binding?.protocol !== "synthetic")
+      throw new Error("expected synthetic binding");
+    assert.equal(result.binding.formula, "subtract");
   });
 
   it("type=enum requires values", () => {

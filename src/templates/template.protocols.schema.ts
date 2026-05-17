@@ -29,6 +29,10 @@ const Dnp3Binding = z.strictObject({
     "binary_output",
     "counter",
   ]),
+  // Optional audit metadata: outstation's configured static variation
+  // (e.g., 5 for Group 30 Var 5 = 32-bit float). Master polls with default
+  // variation when unset.
+  variation: z.number().int().nullable().default(null),
 });
 
 const SnmpBinding = z.strictObject({
@@ -57,12 +61,28 @@ const BacnetIpBinding = z.strictObject({
   property_id: z.enum(["present_value"]).default("present_value"),
 });
 
+// Gateway-side pure-function derivation from cached MQTT inputs.
+// Synthetic channels do NOT poll a south-side device. The gateway subscribes
+// to the topics listed in `inputs`, caches latest values per topic, ticks at
+// the measurement's poll_rate_hz, applies `formula` over cached values, and
+// publishes the result. Holds (no publish) until every input is cached.
+//
+// Input topics may contain `{site_id}` (gateway runtime substitution from
+// deployment config) and `{device_id}` (substituted at AsyncAPI generation
+// time with the instantiating device's id).
+const SyntheticBinding = z.strictObject({
+  protocol: z.literal("synthetic"),
+  formula: z.enum(["subtract", "sum", "mean", "max", "min"]),
+  inputs: z.array(z.string()),
+});
+
 export const Binding = z.discriminatedUnion("protocol", [
   ModbusBinding,
   Dnp3Binding,
   SnmpBinding,
   RedfishBinding,
   BacnetIpBinding,
+  SyntheticBinding,
 ]);
 
 export type BindingType = z.infer<typeof Binding>;

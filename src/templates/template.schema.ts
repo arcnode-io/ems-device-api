@@ -27,6 +27,7 @@ export const TemplateKind = {
 export const Publisher = {
   LINE_CONTROLLER: "line_controller",
   ANALYST: "analyst",
+  GATEWAY: "gateway",
 } as const;
 
 export const Fanout = {
@@ -34,7 +35,7 @@ export const Fanout = {
 } as const;
 
 const TemplateKindSchema = z.enum(["leaf", "module"]);
-const PublisherSchema = z.enum(["line_controller", "analyst"]);
+const PublisherSchema = z.enum(["line_controller", "analyst", "gateway"]);
 const FanoutSchema = z.enum(["line_controller"]);
 
 // ---------------------------------------------------------------------------
@@ -99,9 +100,19 @@ export const Measurement = z
     binding: Binding.nullable().default(null),
     publisher: PublisherSchema.nullable().default(null),
   })
-  .refine((meas) => Boolean(meas.binding) !== Boolean(meas.publisher), {
-    message: "measurement requires exactly one of binding/publisher",
-  })
+  .refine(
+    (meas) => {
+      // Synthetic binding requires publisher=gateway (both fields set).
+      // All other bindings: exactly one of binding XOR publisher.
+      const isSynthetic = meas.binding?.protocol === "synthetic";
+      if (isSynthetic) return meas.publisher === "gateway";
+      return Boolean(meas.binding) !== Boolean(meas.publisher);
+    },
+    {
+      message:
+        "measurement requires exactly one of binding/publisher (synthetic requires publisher=gateway)",
+    },
+  )
   .refine((meas) => !(meas.type === "enum" && meas.values === null), {
     message: "values required for type=enum",
   })

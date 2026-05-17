@@ -42,7 +42,7 @@ export function buildProtocolSourceMap(dtm: DtmType): ProtocolSourceMap {
   for (const [deviceId, device] of Object.entries(dtm.devices)) {
     const tpl = dtm.templates_used[device.template];
     if (!tpl) continue;
-    const entries = collectBindings(tpl, device.connection ?? null);
+    const entries = collectBindings(tpl, device.connection ?? null, deviceId);
     if (Object.keys(entries).length > 0) out[deviceId] = entries;
   }
   return out;
@@ -72,22 +72,27 @@ type ProtocolSourceEntry = BindingType & ConnectionFields & ChannelMeta;
  * Collect all binding-bearing measurements and commands from a template,
  * merging in the device's connection (host/port/unit_id) plus channel meta
  * (`unit`, `poll_rate_hz`) so consumers see the complete protocol-instance
- * picture in one entry.
+ * picture in one entry. For synthetic bindings, substitute `{device_id}` in
+ * the `inputs[]` array with the instantiating `deviceId`. `{site_id}` stays
+ * unresolved — gateway substitutes from its deployment config at runtime.
  * @param tpl Validated DeviceTemplate with measurements and commands
  * @param connection Device-level connection block (host/port/unit_id), or null
+ * @param deviceId The instantiating device's id, used for `{device_id}` substitution
  * @returns Map of channel name -> binding + connection + channel meta
  */
 function collectBindings(
   tpl: DeviceTemplateType,
   connection: ConnectionFields,
+  deviceId: string,
 ): Record<string, ProtocolSourceEntry> {
   const out: Record<string, ProtocolSourceEntry> = {};
   const conn = connection ?? ({} as ConnectionFields);
   for (const [name, meas] of Object.entries(tpl.measurements)) {
     if (meas.binding !== null && meas.binding !== undefined) {
+      const resolvedBinding = resolveDeviceIdPlaceholder(meas.binding, deviceId);
       out[name] = {
         ...conn,
-        ...meas.binding,
+        ...resolvedBinding,
         unit: meas.unit,
         poll_rate_hz: meas.poll_rate_hz,
       } as ProtocolSourceEntry;
@@ -95,14 +100,34 @@ function collectBindings(
   }
   for (const [name, cmd] of Object.entries(tpl.commands)) {
     if (cmd.binding !== null && cmd.binding !== undefined) {
+      const resolvedBinding = resolveDeviceIdPlaceholder(cmd.binding, deviceId);
       out[name] = {
         ...conn,
-        ...cmd.binding,
+        ...resolvedBinding,
         unit: cmd.unit,
       } as ProtocolSourceEntry;
     }
   }
   return out;
+}
+
+/**
+ * Substitute the `{device_id}` placeholder in synthetic binding `inputs[]`
+ * with the instantiating device's id. Non-synthetic bindings pass through
+ * unchanged. `{site_id}` stays unresolved for gateway runtime substitution.
+ * @param binding Binding from a measurement or command
+ * @param deviceId The instantiating device's id
+ * @returns Binding with synthetic.inputs[] resolved if applicable
+ */
+function resolveDeviceIdPlaceholder(
+  binding: BindingType,
+  deviceId: string,
+): BindingType {
+  if (binding.protocol !== "synthetic") return binding;
+  return {
+    ...binding,
+    inputs: binding.inputs.map((t) => t.replace(/\{device_id\}/g, deviceId)),
+  };
 }
 
 /**
