@@ -89,7 +89,10 @@ function collectBindings(
   const conn = connection ?? ({} as ConnectionFields);
   for (const [name, meas] of Object.entries(tpl.measurements)) {
     if (meas.binding !== null && meas.binding !== undefined) {
-      const resolvedBinding = resolveDeviceIdPlaceholder(meas.binding, deviceId);
+      const resolvedBinding = resolveDeviceIdPlaceholder(
+        meas.binding,
+        deviceId,
+      );
       out[name] = {
         ...conn,
         ...resolvedBinding,

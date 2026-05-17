@@ -379,40 +379,39 @@ describe("Measurement", () => {
     assert.ok(msg.length > 0);
   });
 
-  it("type=float requires iec_61850_ref", () => {
-    const msg = fail(Measurement, {
+  it("type=float accepts measurement without iec_61850_ref (now optional)", () => {
+    // Matches edp-api Python: iec_61850_ref is optional, defaults to null.
+    const result = ok(Measurement, {
       unit: "W",
       type: "float",
       bounds: baseBounds,
       thresholds: baseThresholds,
       binding: modbusBinding,
     });
-    assert.ok(msg.length > 0);
+    assert.equal(result.iec_61850_ref, null);
   });
 
-  it("type=float requires bounds", () => {
-    const msg = fail(Measurement, {
+  it("type=float accepts measurement without bounds (now optional)", () => {
+    // Module rollups don't have meaningful bounds; matches edp-api Python.
+    const result = ok(Measurement, {
       unit: "W",
       type: "float",
       iec_61850_ref: "MMXU.W",
       thresholds: baseThresholds,
       binding: modbusBinding,
     });
-    assert.ok(msg.includes("bounds required for type=float"), `got: ${msg}`);
+    assert.equal(result.bounds, null);
   });
 
-  it("type=float requires thresholds", () => {
-    const msg = fail(Measurement, {
+  it("type=float accepts measurement without thresholds (now optional)", () => {
+    const result = ok(Measurement, {
       unit: "W",
       type: "float",
       iec_61850_ref: "MMXU.W",
       bounds: baseBounds,
       binding: modbusBinding,
     });
-    assert.ok(
-      msg.includes("thresholds required for type=float"),
-      `got: ${msg}`,
-    );
+    assert.equal(result.thresholds, null);
   });
 
   it("type=bool does NOT require bounds/thresholds", () => {

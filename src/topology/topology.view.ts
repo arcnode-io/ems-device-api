@@ -23,7 +23,7 @@ export interface MeasurementView {
   type: "float" | "bool" | "enum";
   poll_rate_hz: number | null;
   display_name_default: string | null;
-  iec_61850_ref: string;
+  iec_61850_ref: string | null;
   bounds: MeasurementType["bounds"];
   thresholds: MeasurementType["thresholds"];
   values: MeasurementType["values"];

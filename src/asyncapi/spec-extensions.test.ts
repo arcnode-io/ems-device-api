@@ -52,7 +52,12 @@ function dtmWithSyntheticHeadroom(): DtmType {
             poll_rate_hz: 1,
             display_name_default: "Module Import Headroom",
             bounds: { min: 0, max: 1, nominal: 0 },
-            thresholds: { warn_min: 0, warn_max: 1, alarm_min: 0, alarm_max: 1 },
+            thresholds: {
+              warn_min: 0,
+              warn_max: 1,
+              alarm_min: 0,
+              alarm_max: 1,
+            },
             values: null,
             publisher: "gateway",
             binding: {

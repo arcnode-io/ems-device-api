@@ -60,9 +60,12 @@ export const Bounds = z
   .refine((bounds) => bounds.min < bounds.max, {
     message: "bounds.min must be less than bounds.max",
   })
-  .refine((bounds) => bounds.min <= bounds.nominal && bounds.nominal <= bounds.max, {
-    message: "bounds.nominal must lie within [min, max]",
-  });
+  .refine(
+    (bounds) => bounds.min <= bounds.nominal && bounds.nominal <= bounds.max,
+    {
+      message: "bounds.nominal must lie within [min, max]",
+    },
+  );
 
 // Alarm-threshold envelope for a float measurement. Drives chart MIN/MAX
 // threshold lines (Rule 3.6) and Reading tone derivation. warn band is wider
@@ -93,7 +96,11 @@ export const Measurement = z
     type: z.enum(["float", "bool", "enum"]),
     poll_rate_hz: z.number().nullable().default(null),
     display_name_default: z.string().nullable().default(null),
-    iec_61850_ref: z.string(),
+    // Reason: optional to match the edp-api Python schema (which has
+    // iec_61850_ref: str | None = None). Module-template rollups + legacy
+    // measurements that haven't been annotated yet were rejected by the
+    // prior z.string() — keeping the field nullable matches the source of truth.
+    iec_61850_ref: z.string().nullable().default(null),
     bounds: Bounds.nullable().default(null),
     thresholds: Thresholds.nullable().default(null),
     values: ValuesRecord.nullable().default(null),
@@ -119,12 +126,10 @@ export const Measurement = z
   .refine((meas) => !(meas.type !== "enum" && meas.values !== null), {
     message: "values forbidden for non-enum type",
   })
-  .refine((meas) => !(meas.type === "float" && meas.bounds === null), {
-    message: "bounds required for type=float",
-  })
-  .refine((meas) => !(meas.type === "float" && meas.thresholds === null), {
-    message: "thresholds required for type=float",
-  })
+  // Bounds/thresholds: nullable for floats — matches the edp-api Python
+  // schema. Module rollups (state_of_charge etc.) don't have meaningful
+  // bounds at the abstract template level; concrete leaves can set them.
+  // Forbid-for-non-float invariant kept below.
   .refine((meas) => !(meas.type !== "float" && meas.bounds !== null), {
     message: "bounds forbidden for non-float type",
   })
