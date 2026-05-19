@@ -69,12 +69,14 @@ export type BusType = z.infer<typeof Bus>;
 export const Dtm = z
   .strictObject({
     deployment_uuid: z.string().uuid(),
-    ems_mode: EmsMode.default("sim"),
     sizing_ref: z.string().nullish(),
     sizing_params: SizingParams,
     devices: z.record(z.string(), Device),
     buses: z.array(Bus),
     templates_used: z.record(z.string(), DeviceTemplate),
+    // Computed by edp-api: LIVE iff every device fully provisioned, else SIM.
+    // Field is optional so DTMs constructed in-process (eg tests) can omit it.
+    mode: EmsMode.optional(),
   })
   // parent_chain_resolves: every device.parent must be null or a key in devices
   .refine(

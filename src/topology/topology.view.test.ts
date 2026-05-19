@@ -24,7 +24,7 @@ const socThresholds = {
 
 const baseDtm: DtmType = {
   deployment_uuid: "123e4567-e89b-12d3-a456-426614174000",
-  ems_mode: "sim",
+  mode: "sim",
   sizing_ref: null,
   sizing_params: {
     P_compute_total_kW: 100.0,
@@ -176,7 +176,7 @@ describe("projectDtmToView", () => {
     assert.deepEqual(view.buses, dtm.buses);
   });
 
-  it("retains deployment_uuid, ems_mode, sizing_params", () => {
+  it("retains deployment_uuid, mode, sizing_params", () => {
     // Arrange
     const dtm = baseDtm;
 
@@ -185,7 +185,7 @@ describe("projectDtmToView", () => {
 
     // Assert
     assert.equal(view.deployment_uuid, dtm.deployment_uuid);
-    assert.equal(view.ems_mode, "sim");
+    assert.equal(view.mode, "sim");
     assert.deepEqual(view.sizing_params, dtm.sizing_params);
   });
 });

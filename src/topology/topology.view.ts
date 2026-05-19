@@ -64,7 +64,7 @@ export interface DeviceView {
 /** Full sanitized DTM projection — same top-level shape as DTM minus gateway fields. */
 export interface DtmView {
   deployment_uuid: string;
-  ems_mode: "sim" | "live";
+  mode: "sim" | "live" | undefined;
   sizing_ref: string | null;
   sizing_params: DtmType["sizing_params"];
   devices: Record<string, DeviceView>;
@@ -163,7 +163,7 @@ export function projectDtmToView(dtm: DtmType): DtmView {
   }
   return {
     deployment_uuid: dtm.deployment_uuid,
-    ems_mode: dtm.ems_mode,
+    mode: dtm.mode,
     sizing_ref: dtm.sizing_ref ?? null,
     sizing_params: dtm.sizing_params,
     devices,

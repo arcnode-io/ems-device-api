@@ -296,14 +296,14 @@ describe("Dtm", () => {
     assert.equal(result.deployment_uuid, minimalDtm.deployment_uuid);
   });
 
-  it("ems_mode defaults to 'sim'", () => {
+  it("mode is optional — omitting it parses fine", () => {
     const result = ok(Dtm, minimalDtm);
-    assert.equal(result.ems_mode, "sim");
+    assert.equal(result.mode, undefined);
   });
 
-  it("ems_mode can be set to 'live'", () => {
-    const result = ok(Dtm, { ...minimalDtm, ems_mode: "live" });
-    assert.equal(result.ems_mode, "live");
+  it("mode accepts 'live' from edp-api's computed field", () => {
+    const result = ok(Dtm, { ...minimalDtm, mode: "live" });
+    assert.equal(result.mode, "live");
   });
 
   it("devices keyed by device_id", () => {
