@@ -17,8 +17,10 @@ import type { DtmType } from "../topology/dtm.schema";
 import { buildComponents } from "./spec-components";
 import { buildChannels, buildOperations } from "./spec-channels";
 import {
+  buildAlarmsMap,
   buildProtocolSourceMap,
   buildEnumValuesMap,
+  type AlarmsMap,
   type ProtocolSourceMap,
   type EnumValuesMap,
 } from "./spec-extensions";
@@ -61,6 +63,7 @@ interface AsyncApi3Spec {
   };
   "x-protocol-source": ProtocolSourceMap;
   "x-enum-values": EnumValuesMap;
+  "x-alarms": AlarmsMap;
 }
 
 /**
@@ -87,5 +90,6 @@ export function buildSpec(dtm: DtmType, version: string): AsyncApi3Spec {
     components: buildComponents(templates),
     "x-protocol-source": buildProtocolSourceMap(dtm),
     "x-enum-values": buildEnumValuesMap(templates),
+    "x-alarms": buildAlarmsMap(dtm),
   };
 }

@@ -18,6 +18,7 @@ import type { DtmType } from "../topology/dtm.schema";
 import type {
   DeviceTemplateType,
   BindingType,
+  AlarmType,
 } from "../templates/template.schema";
 
 /** Per-device, per-channel protocol source map. */
@@ -25,6 +26,9 @@ export type ProtocolSourceMap = Record<string, Record<string, unknown>>;
 
 /** Per-template enum vocabulary map. */
 export type EnumValuesMap = Record<string, readonly string[]>;
+
+/** Per-device alarm catalog map — keyed by device_id -> alarms[]. */
+export type AlarmsMap = Record<string, readonly AlarmType[]>;
 
 /**
  * Walk every device in the DTM, look up its template in `templates_used`,
@@ -133,6 +137,26 @@ function resolveDeviceIdPlaceholder(
       topic.replace(/\{device_id\}/g, deviceId),
     ),
   };
+}
+
+/**
+ * Walk every device, look up its template, and emit the template's alarm
+ * catalog under the device_id key. Devices whose template has empty alarms[]
+ * (modules — no equipment_id — and un-rationalized leaves) are skipped so the
+ * map stays sparse. Catalogs are SKU-scoped: every device sharing a template
+ * gets the same alarms[] reference.
+ * @param dtm The self-describing deployment manifest
+ * @returns Map keyed by `device_id` -> alarms[]
+ */
+export function buildAlarmsMap(dtm: DtmType): AlarmsMap {
+  const out: Record<string, readonly AlarmType[]> = {};
+  for (const [deviceId, device] of Object.entries(dtm.devices)) {
+    const tpl = dtm.templates_used[device.template];
+    if (!tpl) continue;
+    if (tpl.alarms.length === 0) continue;
+    out[deviceId] = tpl.alarms;
+  }
+  return out;
 }
 
 /**

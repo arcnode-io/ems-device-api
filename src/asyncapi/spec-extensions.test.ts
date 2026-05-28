@@ -6,7 +6,10 @@
 import "reflect-metadata";
 import * as assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { buildProtocolSourceMap } from "./spec-extensions";
+import {
+  buildAlarmsMap,
+  buildProtocolSourceMap,
+} from "./spec-extensions";
 import type { DtmType } from "../topology/dtm.schema";
 
 /**
@@ -74,6 +77,161 @@ function dtmWithSyntheticHeadroom(): DtmType {
     },
   } as unknown as DtmType;
 }
+
+/**
+ * DTM with one leaf carrying an alarm catalog (mirrors a SKU like GRD-SWG-001).
+ * Plus a module-kind device whose template has no equipment_id and therefore
+ * alarms=[] — must be skipped by buildAlarmsMap per handoff caveat.
+ */
+function dtmWithAlarms(): DtmType {
+  return {
+    deployment_uuid: "00000000-0000-0000-0000-000000000bbb",
+    sizing_params: {
+      P_compute_total_kW: 100,
+      E_BESS_total_kWh: 200,
+      T_coolant_setpoint_C: 18,
+    },
+    devices: {
+      switchgear_1: {
+        device_id: "switchgear_1",
+        template: "switchgear",
+        parent: null,
+        display_name: null,
+        connection: null,
+      },
+      bess_module_1: {
+        device_id: "bess_module_1",
+        template: "bess_module",
+        parent: null,
+        display_name: null,
+        connection: null,
+      },
+    },
+    buses: [],
+    templates_used: {
+      switchgear: {
+        template: "switchgear",
+        kind: "leaf",
+        equipment_id: "GRD-SWG-001",
+        vendor: "ABB",
+        model: "SafeGear",
+        description: "Switchgear leaf with alarms",
+        contains: [],
+        commands: {},
+        measurements: {
+          voltage: {
+            unit: "V",
+            type: "float",
+            iec_61850_ref: "MMXU.PhV",
+            poll_rate_hz: 1,
+            display_name_default: null,
+            bounds: { min: 0, max: 500, nominal: 240 },
+            thresholds: {
+              warn_min: 200,
+              warn_max: 260,
+              alarm_min: 180,
+              alarm_max: 280,
+            },
+            values: null,
+            publisher: null,
+            binding: {
+              protocol: "modbus_tcp",
+              function_code: 3,
+              address: 100,
+              data_type: "int16",
+              word_order: "high_low",
+              scale: 1.0,
+              offset: 0.0,
+            },
+          },
+        },
+        alarms: [
+          {
+            id: "arc_flash_trip",
+            description: "Arc-flash relay tripped breaker",
+            condition_source: {
+              type: "discrete_register",
+              address: 100,
+              meaning_when_set: "alarm",
+            },
+            priority: "P1",
+            operator_action: "Evacuate; verify isolation.",
+            on_delay_ms: 0,
+            off_delay_ms: 0,
+            reset: "latched",
+            reference_doc: "SEL-351 §7.4.1",
+          },
+        ],
+      },
+      bess_module: {
+        template: "bess_module",
+        kind: "module",
+        equipment_id: null,
+        vendor: null,
+        model: null,
+        description: "module — no alarms",
+        contains: [],
+        commands: {},
+        measurements: {
+          soc: {
+            unit: "%",
+            type: "float",
+            iec_61850_ref: "ZBAT.BatChaSt",
+            poll_rate_hz: 1,
+            display_name_default: null,
+            bounds: { min: 0, max: 100, nominal: 50 },
+            thresholds: {
+              warn_min: 10,
+              warn_max: 90,
+              alarm_min: 5,
+              alarm_max: 95,
+            },
+            values: null,
+            publisher: "line_controller",
+            binding: null,
+          },
+        },
+        alarms: [],
+      },
+    },
+  } as unknown as DtmType;
+}
+
+describe("buildAlarmsMap", () => {
+  it("projects per-device alarm catalogs keyed by device_id", () => {
+    const dtm = dtmWithAlarms();
+
+    const map = buildAlarmsMap(dtm);
+
+    assert.deepEqual(Object.keys(map), ["switchgear_1"]);
+    assert.equal(map.switchgear_1?.length, 1);
+    assert.equal(map.switchgear_1?.[0]?.id, "arc_flash_trip");
+  });
+
+  it("skips devices whose template has empty alarms[] (modules + un-rationalized SKUs)", () => {
+    const dtm = dtmWithAlarms();
+
+    const map = buildAlarmsMap(dtm);
+
+    assert.equal(map.bess_module_1, undefined);
+  });
+
+  it("skips devices whose template is missing from templates_used", () => {
+    const dtm = dtmWithAlarms();
+    dtm.devices.orphan = {
+      device_id: "orphan",
+      template: "ghost_template",
+      blocking: [],
+      parent: null,
+      display_name: null,
+      connection: null,
+    };
+
+    const map = buildAlarmsMap(dtm);
+
+    assert.equal(map.orphan, undefined);
+  });
+});
 
 describe("buildProtocolSourceMap synthetic placeholder substitution", () => {
   it("substitutes {device_id} with the instantiating device's id", () => {

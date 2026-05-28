@@ -50,6 +50,10 @@ export const Device = z.strictObject({
   connection: Connection.nullish(),
   blocking: z.array(BlockingKind).default(["live_mode"]),
   extra_measurements: z.record(z.string(), Measurement).nullish(),
+  // Computed by edp-api Pydantic @property and emitted in DTM JSON.
+  // Consumer-side mirror: accept-and-carry, no semantics on device-api.
+  has_placeholders: z.boolean().optional(),
+  mode: EmsMode.optional(),
 });
 export type DeviceType = z.infer<typeof Device>;
 
@@ -77,6 +81,14 @@ export const Dtm = z
     // Computed by edp-api: LIVE iff every device fully provisioned, else SIM.
     // Field is optional so DTMs constructed in-process (eg tests) can omit it.
     mode: EmsMode.optional(),
+    // edp-api emits its own monotonic DTM version. device-api persists its
+    // own version separately in the Topology table — this field is metadata
+    // only, accepted-and-carried.
+    version: z.string().optional(),
+    // Computed by edp-api Pydantic @property: list of devices still carrying
+    // PROVISIONED_AT_COMMISSIONING sentinels. Accept-and-carry; device-api
+    // re-derives if it needs the same view.
+    pending_devices: z.array(Device).optional(),
   })
   // parent_chain_resolves: every device.parent must be null or a key in devices
   .refine(

@@ -1,0 +1,825 @@
+{
+  "version": "1.0.0",
+  "deployment_uuid": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  "sizing_ref": null,
+  "sizing_params": {
+    "P_compute_total_kW": 10.0,
+    "E_BESS_total_kWh": 100.0,
+    "T_coolant_setpoint_C": 20.0
+  },
+  "devices": {
+    "switchgear_1": {
+      "device_id": "switchgear_1",
+      "template": "switchgear",
+      "parent": null,
+      "display_name": null,
+      "connection": null,
+      "blocking": [
+        "live_mode"
+      ],
+      "extra_measurements": null,
+      "has_placeholders": false,
+      "mode": "live"
+    },
+    "bess_rack_1": {
+      "device_id": "bess_rack_1",
+      "template": "bess_rack",
+      "parent": null,
+      "display_name": null,
+      "connection": null,
+      "blocking": [
+        "live_mode"
+      ],
+      "extra_measurements": null,
+      "has_placeholders": false,
+      "mode": "live"
+    },
+    "cdu_1": {
+      "device_id": "cdu_1",
+      "template": "cdu",
+      "parent": null,
+      "display_name": null,
+      "connection": null,
+      "blocking": [
+        "live_mode"
+      ],
+      "extra_measurements": null,
+      "has_placeholders": false,
+      "mode": "live"
+    }
+  },
+  "buses": [],
+  "templates_used": {
+    "switchgear": {
+      "template": "switchgear",
+      "kind": "leaf",
+      "equipment_id": "GRD-SWG-001",
+      "vendor": "ABB",
+      "model": "SafeGear 15kV / 1200A / 50kA (single section, indoor)",
+      "description": "ABB SafeGear 15kV arc-resistant metal-clad MV switchgear with integrated protective relay",
+      "contains": [],
+      "measurements": {
+        "breaker_state": {
+          "unit": "none",
+          "type": "enum",
+          "poll_rate_hz": 1.0,
+          "display_name_default": "Breaker State",
+          "iec_61850_ref": null,
+          "values": {
+            "0": "OPEN",
+            "1": "CLOSED",
+            "2": "TRIPPED",
+            "3": "UNKNOWN"
+          },
+          "bounds": null,
+          "thresholds": null,
+          "binding": {
+            "protocol": "modbus_tcp",
+            "function_code": 3,
+            "address": 0,
+            "data_type": "uint16",
+            "word_order": "high_low",
+            "scale": 1.0,
+            "offset": 0.0
+          },
+          "publisher": null
+        },
+        "bus_voltage_a": {
+          "unit": "volts",
+          "type": "float",
+          "poll_rate_hz": 1.0,
+          "display_name_default": "Bus Voltage Phase A",
+          "iec_61850_ref": null,
+          "values": null,
+          "bounds": null,
+          "thresholds": null,
+          "binding": {
+            "protocol": "modbus_tcp",
+            "function_code": 4,
+            "address": 100,
+            "data_type": "int16",
+            "word_order": "high_low",
+            "scale": 0.1,
+            "offset": 0.0
+          },
+          "publisher": null
+        },
+        "bus_voltage_b": {
+          "unit": "volts",
+          "type": "float",
+          "poll_rate_hz": 1.0,
+          "display_name_default": "Bus Voltage Phase B",
+          "iec_61850_ref": null,
+          "values": null,
+          "bounds": null,
+          "thresholds": null,
+          "binding": {
+            "protocol": "modbus_tcp",
+            "function_code": 4,
+            "address": 101,
+            "data_type": "int16",
+            "word_order": "high_low",
+            "scale": 0.1,
+            "offset": 0.0
+          },
+          "publisher": null
+        },
+        "bus_voltage_c": {
+          "unit": "volts",
+          "type": "float",
+          "poll_rate_hz": 1.0,
+          "display_name_default": "Bus Voltage Phase C",
+          "iec_61850_ref": null,
+          "values": null,
+          "bounds": null,
+          "thresholds": null,
+          "binding": {
+            "protocol": "modbus_tcp",
+            "function_code": 4,
+            "address": 102,
+            "data_type": "int16",
+            "word_order": "high_low",
+            "scale": 0.1,
+            "offset": 0.0
+          },
+          "publisher": null
+        },
+        "bus_current_a": {
+          "unit": "amps",
+          "type": "float",
+          "poll_rate_hz": 1.0,
+          "display_name_default": "Bus Current Phase A",
+          "iec_61850_ref": null,
+          "values": null,
+          "bounds": null,
+          "thresholds": null,
+          "binding": {
+            "protocol": "modbus_tcp",
+            "function_code": 4,
+            "address": 110,
+            "data_type": "int16",
+            "word_order": "high_low",
+            "scale": 0.1,
+            "offset": 0.0
+          },
+          "publisher": null
+        },
+        "bus_current_b": {
+          "unit": "amps",
+          "type": "float",
+          "poll_rate_hz": 1.0,
+          "display_name_default": "Bus Current Phase B",
+          "iec_61850_ref": null,
+          "values": null,
+          "bounds": null,
+          "thresholds": null,
+          "binding": {
+            "protocol": "modbus_tcp",
+            "function_code": 4,
+            "address": 111,
+            "data_type": "int16",
+            "word_order": "high_low",
+            "scale": 0.1,
+            "offset": 0.0
+          },
+          "publisher": null
+        },
+        "bus_current_c": {
+          "unit": "amps",
+          "type": "float",
+          "poll_rate_hz": 1.0,
+          "display_name_default": "Bus Current Phase C",
+          "iec_61850_ref": null,
+          "values": null,
+          "bounds": null,
+          "thresholds": null,
+          "binding": {
+            "protocol": "modbus_tcp",
+            "function_code": 4,
+            "address": 112,
+            "data_type": "int16",
+            "word_order": "high_low",
+            "scale": 0.1,
+            "offset": 0.0
+          },
+          "publisher": null
+        }
+      },
+      "commands": {},
+      "install_tasks": [
+        {
+          "name": "set_and_anchor",
+          "depends_on": [],
+          "est_minutes": 240,
+          "crew_role": "electrician",
+          "cx_level": "L1"
+        },
+        {
+          "name": "terminate_incoming_feeder",
+          "depends_on": [
+            "set_and_anchor"
+          ],
+          "est_minutes": 180,
+          "crew_role": "electrician",
+          "cx_level": "L2"
+        },
+        {
+          "name": "modbus_commission",
+          "depends_on": [
+            "terminate_incoming_feeder"
+          ],
+          "est_minutes": 30,
+          "crew_role": "it",
+          "cx_level": "L3"
+        }
+      ],
+      "alarms": [
+        {
+          "id": "protective_overcurrent_trip",
+          "description": "51 phase overcurrent element picked up (≥1.25× I_nominal)",
+          "condition_source": {
+            "type": "discrete_register",
+            "address": 0,
+            "meaning_when_set": "alarm"
+          },
+          "priority": "P1",
+          "operator_action": "Investigate downstream fault. Lock-out / tag-out before any close.\nVerify CT polarity if event is unexpected. Capture event report.\n",
+          "on_delay_ms": 0,
+          "off_delay_ms": 0,
+          "reset": "latched",
+          "reference_doc": "SEL-351 Instruction Manual §3 (Overcurrent Elements)"
+        },
+        {
+          "id": "breaker_failure_50bf",
+          "description": "50BF breaker-failure timer expired — main breaker did not interrupt",
+          "condition_source": {
+            "type": "discrete_register",
+            "address": 0,
+            "meaning_when_set": "alarm"
+          },
+          "priority": "P1",
+          "operator_action": "Immediate. Open upstream backup device. Do NOT attempt re-close.\nField-verify breaker physical state (closed/open) before any action.\n",
+          "on_delay_ms": 0,
+          "off_delay_ms": 0,
+          "reset": "latched",
+          "reference_doc": "SEL-351 Instruction Manual §6 (Breaker Failure)"
+        },
+        {
+          "id": "arc_flash_detected",
+          "description": "Optical arc-flash sensor triggered — light + current confirmed",
+          "condition_source": {
+            "type": "discrete_register",
+            "address": 0,
+            "meaning_when_set": "alarm"
+          },
+          "priority": "P1",
+          "operator_action": "Personnel must clear the room immediately. Do not approach until\nthermal-imaging clearance + de-energization confirmed. Notify\non-call electrical engineer. Document for OSHA arc-flash incident report.\n",
+          "on_delay_ms": 0,
+          "off_delay_ms": 0,
+          "reset": "latched",
+          "reference_doc": "IEEE C37.20.7 §6 (Arc-Resistant Switchgear)"
+        },
+        {
+          "id": "breaker_close_coil_failure",
+          "description": "Breaker close command issued; close coil did not energize",
+          "condition_source": {
+            "type": "discrete_register",
+            "address": 0,
+            "meaning_when_set": "alarm"
+          },
+          "priority": "P2",
+          "operator_action": "Verify close coil continuity + DC control voltage at the cabinet.\nCoordinate with maintenance to test close circuit before next attempt.\nDo not strip back the alarm without coil swap or cause confirmed.\n",
+          "on_delay_ms": 500,
+          "off_delay_ms": 0,
+          "reset": "latched",
+          "reference_doc": "ABB SafeGear Service Manual §4 (Control Circuit Diagnostics)"
+        }
+      ]
+    },
+    "bess_rack": {
+      "template": "bess_rack",
+      "kind": "leaf",
+      "equipment_id": "EXT-BESS-002",
+      "vendor": "Tesla",
+      "model": "Megapack 2 XL (PN 1848844-XX-Y)",
+      "description": "Tesla Megapack 2 XL 4 MWh AC-coupled BESS with grid-forming inverter via Modbus TCP",
+      "contains": [],
+      "measurements": {
+        "state_of_charge": {
+          "unit": "percent",
+          "type": "float",
+          "poll_rate_hz": 1.0,
+          "display_name_default": "State of Charge",
+          "iec_61850_ref": "ZBAT.BatChaSt",
+          "values": null,
+          "bounds": {
+            "min": 0.0,
+            "max": 100.0,
+            "nominal": 50.0
+          },
+          "thresholds": {
+            "warn_min": 15.0,
+            "warn_max": 90.0,
+            "alarm_min": 5.0,
+            "alarm_max": 95.0
+          },
+          "binding": {
+            "protocol": "modbus_tcp",
+            "function_code": 3,
+            "address": 0,
+            "data_type": "uint16",
+            "word_order": "high_low",
+            "scale": 0.1,
+            "offset": 0.0
+          },
+          "publisher": null
+        },
+        "active_power": {
+          "unit": "watts",
+          "type": "float",
+          "poll_rate_hz": 1.0,
+          "display_name_default": "Active Power (+ discharge, - charge)",
+          "iec_61850_ref": "MMXU.W",
+          "values": null,
+          "bounds": {
+            "min": -4000000.0,
+            "max": 4000000.0,
+            "nominal": 0.0
+          },
+          "thresholds": {
+            "warn_min": -3800000.0,
+            "warn_max": 3800000.0,
+            "alarm_min": -4000000.0,
+            "alarm_max": 4000000.0
+          },
+          "binding": {
+            "protocol": "modbus_tcp",
+            "function_code": 3,
+            "address": 10,
+            "data_type": "int32",
+            "word_order": "high_low",
+            "scale": 1.0,
+            "offset": 0.0
+          },
+          "publisher": null
+        },
+        "reactive_power": {
+          "unit": "vars",
+          "type": "float",
+          "poll_rate_hz": 1.0,
+          "display_name_default": "Reactive Power",
+          "iec_61850_ref": "MMXU.VAr",
+          "values": null,
+          "bounds": {
+            "min": -2000000.0,
+            "max": 2000000.0,
+            "nominal": 0.0
+          },
+          "thresholds": {
+            "warn_min": -1800000.0,
+            "warn_max": 1800000.0,
+            "alarm_min": -2000000.0,
+            "alarm_max": 2000000.0
+          },
+          "binding": {
+            "protocol": "modbus_tcp",
+            "function_code": 3,
+            "address": 12,
+            "data_type": "int32",
+            "word_order": "high_low",
+            "scale": 1.0,
+            "offset": 0.0
+          },
+          "publisher": null
+        },
+        "ac_voltage": {
+          "unit": "volts",
+          "type": "float",
+          "poll_rate_hz": 1.0,
+          "display_name_default": "AC Bus Voltage",
+          "iec_61850_ref": "MMXU.PhV.phsA",
+          "values": null,
+          "bounds": {
+            "min": 0.0,
+            "max": 600.0,
+            "nominal": 480.0
+          },
+          "thresholds": {
+            "warn_min": 432.0,
+            "warn_max": 528.0,
+            "alarm_min": 408.0,
+            "alarm_max": 552.0
+          },
+          "binding": {
+            "protocol": "modbus_tcp",
+            "function_code": 3,
+            "address": 20,
+            "data_type": "uint16",
+            "word_order": "high_low",
+            "scale": 0.1,
+            "offset": 0.0
+          },
+          "publisher": null
+        },
+        "frequency": {
+          "unit": "hertz",
+          "type": "float",
+          "poll_rate_hz": 10.0,
+          "display_name_default": "AC Frequency",
+          "iec_61850_ref": "MMXU.Hz",
+          "values": null,
+          "bounds": {
+            "min": 55.0,
+            "max": 65.0,
+            "nominal": 60.0
+          },
+          "thresholds": {
+            "warn_min": 59.5,
+            "warn_max": 60.5,
+            "alarm_min": 59.0,
+            "alarm_max": 61.0
+          },
+          "binding": {
+            "protocol": "modbus_tcp",
+            "function_code": 3,
+            "address": 22,
+            "data_type": "uint16",
+            "word_order": "high_low",
+            "scale": 0.01,
+            "offset": 0.0
+          },
+          "publisher": null
+        },
+        "energy_discharged": {
+          "unit": "watt_hours",
+          "type": "float",
+          "poll_rate_hz": 0.1,
+          "display_name_default": "Energy Discharged",
+          "iec_61850_ref": "MMTR.SupWh",
+          "values": null,
+          "bounds": {
+            "min": 0.0,
+            "max": 1000000000.0,
+            "nominal": 0.0
+          },
+          "thresholds": {
+            "warn_min": 0.0,
+            "warn_max": 950000000.0,
+            "alarm_min": 0.0,
+            "alarm_max": 1000000000.0
+          },
+          "binding": {
+            "protocol": "modbus_tcp",
+            "function_code": 3,
+            "address": 30,
+            "data_type": "int32",
+            "word_order": "high_low",
+            "scale": 1.0,
+            "offset": 0.0
+          },
+          "publisher": null
+        },
+        "operating_state": {
+          "unit": "none",
+          "type": "enum",
+          "poll_rate_hz": 1.0,
+          "display_name_default": "Operating State",
+          "iec_61850_ref": "ZGEN.Mod.stVal",
+          "values": {
+            "0": "STANDBY",
+            "1": "CHARGING",
+            "2": "DISCHARGING",
+            "3": "FAULT",
+            "4": "OFFLINE"
+          },
+          "bounds": null,
+          "thresholds": null,
+          "binding": {
+            "protocol": "modbus_tcp",
+            "function_code": 3,
+            "address": 40,
+            "data_type": "uint16",
+            "word_order": "high_low",
+            "scale": 1.0,
+            "offset": 0.0
+          },
+          "publisher": null
+        }
+      },
+      "commands": {
+        "set_active_power": {
+          "verb": "set",
+          "target": "active_power",
+          "unit": "watts",
+          "payload": "float",
+          "display_name_default": "Set Active Power Setpoint",
+          "binding": {
+            "protocol": "modbus_tcp",
+            "function_code": 16,
+            "address": 50,
+            "data_type": "int32",
+            "word_order": "high_low",
+            "scale": 1.0,
+            "offset": 0.0
+          },
+          "fanout": null
+        }
+      },
+      "install_tasks": [
+        {
+          "name": "set_and_anchor",
+          "depends_on": [],
+          "est_minutes": 180,
+          "crew_role": "electrician",
+          "cx_level": "L1"
+        },
+        {
+          "name": "wire_dc_bus",
+          "depends_on": [
+            "set_and_anchor"
+          ],
+          "est_minutes": 120,
+          "crew_role": "electrician",
+          "cx_level": "L2"
+        },
+        {
+          "name": "canopen_commission",
+          "depends_on": [
+            "wire_dc_bus"
+          ],
+          "est_minutes": 30,
+          "crew_role": "it",
+          "cx_level": "L3"
+        }
+      ],
+      "alarms": [
+        {
+          "id": "pack_overtemperature",
+          "description": "Max cell temperature exceeds 55°C — thermal-runaway precursor",
+          "condition_source": {
+            "type": "analog_threshold",
+            "address": 0,
+            "threshold": 55.0,
+            "direction": "above",
+            "unit": "celsius",
+            "deadband_pct": 5.0
+          },
+          "priority": "P1",
+          "operator_action": "Immediate. Command PCS to standby (stop both charge + discharge).\nEngage TMS pre-cooling if not already active. Site personnel to\nclear immediate vicinity until temp returns < 50°C for 5 minutes.\nDo NOT bypass until BMS event log review.\n",
+          "on_delay_ms": 1000,
+          "off_delay_ms": 60000,
+          "reset": "latched",
+          "reference_doc": "CATL ZNH Modbus TCP Protocol V1.3 §thermal"
+        },
+        {
+          "id": "cell_voltage_imbalance",
+          "description": "ΔV (max cell V − min cell V) > 100 mV — pack health degrading",
+          "condition_source": {
+            "type": "analog_threshold",
+            "address": 0,
+            "threshold": 0.1,
+            "direction": "above",
+            "unit": "volts",
+            "deadband_pct": 10.0
+          },
+          "priority": "P2",
+          "operator_action": "Reduce charge current to ≤0.25C and allow balancer to equalize.\nIf ΔV persists >24h at low current, schedule cell-level diagnostic.\n",
+          "on_delay_ms": 5000,
+          "off_delay_ms": 0,
+          "reset": "auto",
+          "reference_doc": "CATL ZNH Modbus TCP Protocol V1.3 §cell_health"
+        },
+        {
+          "id": "bms_communication_loss",
+          "description": "MBMU heartbeat register stops updating — BMS comms lost",
+          "condition_source": {
+            "type": "discrete_register",
+            "address": 0,
+            "meaning_when_set": "alarm"
+          },
+          "priority": "P2",
+          "operator_action": "Verify Ethernet link on MBMU. Restart MBMU comm board if necessary.\nCommand PCS to standby until BMS visibility is restored — operating\nwithout cell-level telemetry violates the safe-operating envelope.\n",
+          "on_delay_ms": 3000,
+          "off_delay_ms": 0,
+          "reset": "auto",
+          "reference_doc": "CATL ZNH Modbus TCP Protocol V1.3 §comms"
+        },
+        {
+          "id": "state_of_charge_imbalance",
+          "description": "ΔSoC across racks > 5% — rotation strategy not equalizing",
+          "condition_source": {
+            "type": "analog_threshold",
+            "address": 0,
+            "threshold": 5.0,
+            "direction": "above",
+            "unit": "percent",
+            "deadband_pct": 20.0
+          },
+          "priority": "P3",
+          "operator_action": "Confirm rack-rotation logic in EMS is enabled. If yes, schedule\nrack-balance cycle at next charge-discharge transition. Track over\nnext 48h; escalate to P2 if ΔSoC keeps growing.\n",
+          "on_delay_ms": 60000,
+          "off_delay_ms": 0,
+          "reset": "auto",
+          "reference_doc": "CATL ZNH Modbus TCP Protocol V1.3 §rack_state"
+        }
+      ]
+    },
+    "cdu": {
+      "template": "cdu",
+      "kind": "leaf",
+      "equipment_id": "CMP-CDU-001",
+      "vendor": "Motivair (a Schneider Electric company)",
+      "model": "MCDU-10 (19\" model)",
+      "description": "Motivair MCDU-10 210kW rack-mount liquid-to-liquid CDU with Redfish supervisory control",
+      "contains": [],
+      "measurements": {
+        "supply_temp": {
+          "unit": "celsius",
+          "type": "float",
+          "poll_rate_hz": 0.5,
+          "display_name_default": "Coolant Supply Temperature",
+          "iec_61850_ref": null,
+          "values": null,
+          "bounds": null,
+          "thresholds": null,
+          "binding": {
+            "protocol": "redfish",
+            "uri": "/Chassis/CDU/Thermal",
+            "json_pointer": "/Temperatures/0/ReadingCelsius"
+          },
+          "publisher": null
+        },
+        "return_temp": {
+          "unit": "celsius",
+          "type": "float",
+          "poll_rate_hz": 0.5,
+          "display_name_default": "Coolant Return Temperature",
+          "iec_61850_ref": null,
+          "values": null,
+          "bounds": null,
+          "thresholds": null,
+          "binding": {
+            "protocol": "redfish",
+            "uri": "/Chassis/CDU/Thermal",
+            "json_pointer": "/Temperatures/1/ReadingCelsius"
+          },
+          "publisher": null
+        },
+        "pump_flow_rate": {
+          "unit": "liters_per_minute",
+          "type": "float",
+          "poll_rate_hz": 0.5,
+          "display_name_default": "Pump Flow Rate",
+          "iec_61850_ref": null,
+          "values": null,
+          "bounds": null,
+          "thresholds": null,
+          "binding": {
+            "protocol": "redfish",
+            "uri": "/Chassis/CDU/Pumps",
+            "json_pointer": "/Members/0/FlowLitersPerMinute"
+          },
+          "publisher": null
+        },
+        "pump_speed": {
+          "unit": "percent",
+          "type": "float",
+          "poll_rate_hz": 0.5,
+          "display_name_default": "Pump Speed",
+          "iec_61850_ref": null,
+          "values": null,
+          "bounds": null,
+          "thresholds": null,
+          "binding": {
+            "protocol": "redfish",
+            "uri": "/Chassis/CDU/Pumps",
+            "json_pointer": "/Members/0/SpeedPercent"
+          },
+          "publisher": null
+        },
+        "pump_state": {
+          "unit": "none",
+          "type": "enum",
+          "poll_rate_hz": 0.5,
+          "display_name_default": "Pump State",
+          "iec_61850_ref": null,
+          "values": {
+            "0": "STOPPED",
+            "1": "RUNNING",
+            "2": "FAULT"
+          },
+          "bounds": null,
+          "thresholds": null,
+          "binding": {
+            "protocol": "redfish",
+            "uri": "/Chassis/CDU/Pumps",
+            "json_pointer": "/Members/0/Status/State"
+          },
+          "publisher": null
+        }
+      },
+      "commands": {},
+      "install_tasks": [
+        {
+          "name": "mount_in_rack",
+          "depends_on": [],
+          "est_minutes": 30,
+          "crew_role": "plumber",
+          "cx_level": "L1"
+        },
+        {
+          "name": "connect_facility_loop",
+          "depends_on": [
+            "mount_in_rack"
+          ],
+          "est_minutes": 90,
+          "crew_role": "plumber",
+          "cx_level": "L2"
+        },
+        {
+          "name": "wire_control_power",
+          "depends_on": [
+            "mount_in_rack"
+          ],
+          "est_minutes": 20,
+          "crew_role": "electrician",
+          "cx_level": "L2"
+        },
+        {
+          "name": "redfish_commission",
+          "depends_on": [
+            "connect_facility_loop",
+            "wire_control_power"
+          ],
+          "est_minutes": 15,
+          "crew_role": "it",
+          "cx_level": "L3"
+        }
+      ],
+      "alarms": [
+        {
+          "id": "secondary_loop_leak",
+          "description": "Leak-detection sensor on secondary (TCS) loop triggered",
+          "condition_source": {
+            "type": "redfish_event",
+            "event_id": "TBD_MCDU_SecondaryLoopLeak",
+            "severity": "Critical"
+          },
+          "priority": "P1",
+          "operator_action": "Immediate. Command CDU to shutdown via Redfish action. Isolate\nsecondary loop manual valves. Personnel to evacuate compute container\nif pooling observed. Notify facilities — coolant is dielectric but\nslip + electrical-equipment exposure are real hazards.\n",
+          "on_delay_ms": 0,
+          "off_delay_ms": 0,
+          "reset": "latched",
+          "reference_doc": "Motivair MCDU-10 Service Manual §6 (Leak Detection)"
+        },
+        {
+          "id": "pump_failure_primary",
+          "description": "Primary-loop pump did not start or has stalled",
+          "condition_source": {
+            "type": "redfish_event",
+            "event_id": "TBD_MCDU_PrimaryPumpFault",
+            "severity": "Critical"
+          },
+          "priority": "P1",
+          "operator_action": "Immediate. CDU has redundant pumps — verify secondary pump took over\nvia Redfish PumpState query. If both failed, schedule emergency GPU\nworkload drain (CDUs can't sustain thermal load without pumps).\nReplace pump before resuming primary loop.\n",
+          "on_delay_ms": 2000,
+          "off_delay_ms": 0,
+          "reset": "latched",
+          "reference_doc": "Motivair MCDU-10 Service Manual §4 (Pump Diagnostics)"
+        },
+        {
+          "id": "coolant_flow_low",
+          "description": "Secondary-loop flow rate below configured minimum",
+          "condition_source": {
+            "type": "redfish_event",
+            "event_id": "TBD_MCDU_LowFlow",
+            "severity": "Warning"
+          },
+          "priority": "P2",
+          "operator_action": "Check secondary-loop manifold valves are fully open. Verify pump\nspeed matches setpoint via Redfish. Inspect supply-side filters.\nIf flow stays low > 5 min, escalate to GPU power throttling.\n",
+          "on_delay_ms": 5000,
+          "off_delay_ms": 0,
+          "reset": "auto",
+          "reference_doc": "Motivair MCDU-10 Service Manual §5 (Flow Monitoring)"
+        },
+        {
+          "id": "control_power_loss",
+          "description": "AC control-power input lost; CDU running on last-known-value fallback",
+          "condition_source": {
+            "type": "redfish_event",
+            "event_id": "TBD_MCDU_ControlPowerLost",
+            "severity": "Warning"
+          },
+          "priority": "P2",
+          "operator_action": "Verify rack PDU outlet supplying CDU control power. If outlet OK,\ncheck CDU AC/DC supply. CDU will continue cooling on last setpoint\nbut cannot accept new commands until control power is restored —\navoid GPU workload shifts during this window.\n",
+          "on_delay_ms": 1000,
+          "off_delay_ms": 0,
+          "reset": "auto",
+          "reference_doc": "Motivair MCDU-10 Service Manual §3 (Power Topology)"
+        }
+      ]
+    }
+  },
+  "mode": "live",
+  "pending_devices": []
+}
