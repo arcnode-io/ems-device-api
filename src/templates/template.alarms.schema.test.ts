@@ -230,8 +230,16 @@ describe("Alarm", () => {
   });
 
   it("rejects missing operator_action (Hollifield §A4 step 4)", () => {
-    const { operator_action: _drop, ...without } = baseAlarm;
-    const msg = fail(Alarm, without);
+    const msg = fail(Alarm, {
+      id: baseAlarm.id,
+      description: baseAlarm.description,
+      condition_source: baseAlarm.condition_source,
+      priority: baseAlarm.priority,
+      on_delay_ms: baseAlarm.on_delay_ms,
+      off_delay_ms: baseAlarm.off_delay_ms,
+      reset: baseAlarm.reset,
+      reference_doc: baseAlarm.reference_doc,
+    });
     assert.ok(msg.length > 0);
   });
 });
