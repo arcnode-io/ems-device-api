@@ -61,6 +61,17 @@ const BacnetIpBinding = z.strictObject({
   property_id: z.enum(["present_value"]).default("present_value"),
 });
 
+// BACnet/SC (ASHRAE 135-2020 Annex AB). Hub-and-spoke over WebSockets with
+// mandatory mTLS. Tier-1 enums match BacnetIp; widen as templates land.
+const BacnetScBinding = z.strictObject({
+  protocol: z.literal("bacnet_sc"),
+  hub_url: z.url().startsWith("wss://"),
+  device_vmac: z.string().regex(/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/),
+  object_type: z.enum(["analog_input"]),
+  object_instance: z.number().int().nonnegative(),
+  property_id: z.enum(["present_value"]),
+});
+
 // Gateway-side pure-function derivation from cached MQTT inputs.
 // Synthetic channels do NOT poll a south-side device. The gateway subscribes
 // to the topics listed in `inputs`, caches latest values per topic, ticks at
@@ -82,6 +93,7 @@ export const Binding = z.discriminatedUnion("protocol", [
   SnmpBinding,
   RedfishBinding,
   BacnetIpBinding,
+  BacnetScBinding,
   SyntheticBinding,
 ]);
 

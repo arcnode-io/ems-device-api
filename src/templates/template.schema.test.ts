@@ -9,8 +9,10 @@ import {
   Binding,
   Command,
   ContainsEntry,
+  CxLevel,
   DeviceTemplate,
   Fanout,
+  InstallTask,
   Measurement,
   Publisher,
   TemplateKind,
@@ -187,6 +189,54 @@ describe("Binding", () => {
       object_instance: 1,
     });
     assert.equal(result.protocol, "bacnet_ip");
+  });
+
+  it("parses BacnetScBinding", () => {
+    const result = ok(Binding, {
+      protocol: "bacnet_sc",
+      hub_url: "wss://hub.example.com:47808/",
+      device_vmac: "AA:BB:CC:DD:EE:FF",
+      object_type: "analog_input",
+      object_instance: 1,
+      property_id: "present_value",
+    });
+    assert.equal(result.protocol, "bacnet_sc");
+  });
+
+  it("BacnetScBinding: rejects non-wss hub_url (ASHRAE 135 Annex AB §7.4 — mTLS only)", () => {
+    const msg = fail(Binding, {
+      protocol: "bacnet_sc",
+      hub_url: "https://hub.example.com/",
+      device_vmac: "AA:BB:CC:DD:EE:FF",
+      object_type: "analog_input",
+      object_instance: 1,
+      property_id: "present_value",
+    });
+    assert.ok(msg.length > 0);
+  });
+
+  it("BacnetScBinding: rejects malformed device_vmac", () => {
+    const msg = fail(Binding, {
+      protocol: "bacnet_sc",
+      hub_url: "wss://hub.example.com/",
+      device_vmac: "AA-BB-CC-DD-EE-FF",
+      object_type: "analog_input",
+      object_instance: 1,
+      property_id: "present_value",
+    });
+    assert.ok(msg.length > 0);
+  });
+
+  it("BacnetScBinding: rejects negative object_instance", () => {
+    const msg = fail(Binding, {
+      protocol: "bacnet_sc",
+      hub_url: "wss://hub.example.com/",
+      device_vmac: "AA:BB:CC:DD:EE:FF",
+      object_type: "analog_input",
+      object_instance: -1,
+      property_id: "present_value",
+    });
+    assert.ok(msg.length > 0);
   });
 
   it("rejects unknown protocol", () => {
@@ -573,6 +623,66 @@ describe("ContainsEntry", () => {
 });
 
 // ---------------------------------------------------------------------------
+// InstallTask
+// ---------------------------------------------------------------------------
+
+describe("CxLevel", () => {
+  it("accepts L1..L5", () => {
+    for (const lvl of ["L1", "L2", "L3", "L4", "L5"]) {
+      assert.equal(ok(CxLevel, lvl), lvl);
+    }
+  });
+
+  it("rejects L0", () => {
+    const msg = fail(CxLevel, "L0");
+    assert.ok(msg.length > 0);
+  });
+});
+
+const baseInstallTask = {
+  name: "mount_in_rack",
+  est_minutes: 20,
+  crew_role: "electrician" as const,
+  cx_level: "L1" as const,
+};
+
+describe("InstallTask", () => {
+  it("parses minimal task; depends_on defaults to []", () => {
+    const result = ok(InstallTask, baseInstallTask);
+    assert.equal(result.name, "mount_in_rack");
+    assert.deepEqual(result.depends_on, []);
+  });
+
+  it("accepts depends_on list", () => {
+    const result = ok(InstallTask, {
+      ...baseInstallTask,
+      depends_on: ["unbox", "stage"],
+    });
+    assert.deepEqual(result.depends_on, ["unbox", "stage"]);
+  });
+
+  it("rejects est_minutes <= 0", () => {
+    const msg = fail(InstallTask, { ...baseInstallTask, est_minutes: 0 });
+    assert.ok(msg.length > 0);
+  });
+
+  it("rejects non-int est_minutes", () => {
+    const msg = fail(InstallTask, { ...baseInstallTask, est_minutes: 1.5 });
+    assert.ok(msg.length > 0);
+  });
+
+  it("rejects crew_role outside enum", () => {
+    const msg = fail(InstallTask, { ...baseInstallTask, crew_role: "welder" });
+    assert.ok(msg.length > 0);
+  });
+
+  it("rejects unknown fields (strict)", () => {
+    const msg = fail(InstallTask, { ...baseInstallTask, extra: true });
+    assert.ok(msg.length > 0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // DeviceTemplate
 // ---------------------------------------------------------------------------
 
@@ -736,5 +846,47 @@ describe("DeviceTemplate", () => {
   it("contains defaults to empty array", () => {
     const result = ok(DeviceTemplate, minimalLeaf);
     assert.deepEqual(result.contains, []);
+  });
+
+  it("install_tasks defaults to empty array", () => {
+    const result = ok(DeviceTemplate, minimalLeaf);
+    assert.deepEqual(result.install_tasks, []);
+  });
+
+  it("accepts install_tasks list", () => {
+    const result = ok(DeviceTemplate, {
+      ...minimalLeaf,
+      install_tasks: [
+        baseInstallTask,
+        {
+          name: "wire_power",
+          depends_on: ["mount_in_rack"],
+          est_minutes: 45,
+          crew_role: "electrician",
+          cx_level: "L1",
+        },
+      ],
+    });
+    assert.equal(result.install_tasks.length, 2);
+    assert.equal(result.install_tasks[1]?.name, "wire_power");
+  });
+
+  it("rejects install_task with depends_on pointing at missing task", () => {
+    const msg = fail(DeviceTemplate, {
+      ...minimalLeaf,
+      install_tasks: [
+        {
+          name: "wire_power",
+          depends_on: ["nonexistent"],
+          est_minutes: 45,
+          crew_role: "electrician",
+          cx_level: "L1",
+        },
+      ],
+    });
+    assert.ok(
+      msg.includes("depends_on") && msg.includes("nonexistent"),
+      `got: ${msg}`,
+    );
   });
 });

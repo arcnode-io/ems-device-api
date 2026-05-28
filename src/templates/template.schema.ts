@@ -8,9 +8,20 @@
 
 import { z } from "zod";
 import { Binding } from "./template.protocols.schema";
+import { Alarm } from "./template.alarms.schema";
 
 export { Binding } from "./template.protocols.schema";
 export type { BindingType } from "./template.protocols.schema";
+export {
+  Alarm,
+  AlarmPriority,
+  ConditionSource,
+  Reset,
+} from "./template.alarms.schema";
+export type {
+  AlarmType,
+  ConditionSourceType,
+} from "./template.alarms.schema";
 
 // Slug pattern — ADR-002 §9
 const SLUG_RE = /^[a-z][a-z0-9_]{0,62}[a-z0-9]$/;
@@ -164,6 +175,22 @@ export const Command = z
   });
 
 // ---------------------------------------------------------------------------
+// InstallTask
+// ---------------------------------------------------------------------------
+
+// BICSI commissioning levels — L(n) gates wait on every L(n-1) across all
+// devices in the install sequence DAG.
+export const CxLevel = z.enum(["L1", "L2", "L3", "L4", "L5"]);
+
+export const InstallTask = z.strictObject({
+  name: z.string(),
+  depends_on: z.array(z.string()).default([]),
+  est_minutes: z.number().int().positive(),
+  crew_role: z.enum(["electrician", "plumber", "it", "general"]),
+  cx_level: CxLevel,
+});
+
+// ---------------------------------------------------------------------------
 // ContainsEntry
 // ---------------------------------------------------------------------------
 
@@ -190,6 +217,11 @@ export const DeviceTemplate = z
     contains: z.array(ContainsEntry).default([]),
     measurements: z.record(z.string(), Measurement).default({}),
     commands: z.record(z.string(), Command).default({}),
+    install_tasks: z.array(InstallTask).default([]),
+    // Alarm catalog projected from each leaf's equipment_spec.yaml by edp-api.
+    // Modules + un-rationalized leaves surface as []. Mirror of edp-api
+    // DeviceTemplate.alarms (Pydantic), shape defined in template.alarms.schema.
+    alarms: z.array(Alarm).default([]),
   })
   .refine((tpl) => SLUG_RE.test(tpl.template), {
     message: "template slug must match snake_case slug pattern",
@@ -232,7 +264,22 @@ export const DeviceTemplate = z
     {
       message: "template must declare at least one of measurements or commands",
     },
-  );
+  )
+  // install_task.depends_on must name another install_task in the same template.
+  .superRefine((tpl, ctx) => {
+    const names = new Set(tpl.install_tasks.map((t) => t.name));
+    for (const task of tpl.install_tasks) {
+      for (const dep of task.depends_on) {
+        if (!names.has(dep)) {
+          ctx.addIssue({
+            code: "custom",
+            message: `install_task ${task.name}: depends_on ${dep} not found in install_tasks`,
+            path: ["install_tasks"],
+          });
+        }
+      }
+    }
+  });
 
 // Public TypeScript types (inferred from Zod schemas)
 export type MeasurementType = z.infer<typeof Measurement>;
