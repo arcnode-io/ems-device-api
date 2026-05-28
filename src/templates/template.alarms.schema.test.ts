@@ -12,10 +12,24 @@ import {
   Reset,
 } from "./template.alarms.schema";
 
+/**
+ * Parse and assert success, returning the typed value.
+ * @param schema - Zod schema with a `parse` method
+ * @param schema.parse - Zod parse method
+ * @param input - Raw input value to parse
+ * @returns The parsed and typed value
+ */
 function ok<T>(schema: { parse: (v: unknown) => T }, input: unknown): T {
   return schema.parse(input);
 }
 
+/**
+ * Parse and assert failure, returning all joined error messages.
+ * @param schema - Zod schema with a `safeParse` method
+ * @param schema.safeParse - Zod safeParse method
+ * @param input - Raw input value expected to fail
+ * @returns Semicolon-joined issue messages
+ */
 function fail(
   schema: {
     safeParse: (v: unknown) => {
@@ -36,8 +50,8 @@ function fail(
 
 describe("AlarmPriority", () => {
   it("accepts P1..P4", () => {
-    for (const p of ["P1", "P2", "P3", "P4"]) {
-      assert.equal(ok(AlarmPriority, p), p);
+    for (const prio of ["P1", "P2", "P3", "P4"]) {
+      assert.equal(ok(AlarmPriority, prio), prio);
     }
   });
 

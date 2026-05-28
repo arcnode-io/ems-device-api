@@ -267,7 +267,7 @@ export const DeviceTemplate = z
   )
   // install_task.depends_on must name another install_task in the same template.
   .superRefine((tpl, ctx) => {
-    const names = new Set(tpl.install_tasks.map((t) => t.name));
+    const names = new Set(tpl.install_tasks.map((task) => task.name));
     for (const task of tpl.install_tasks) {
       for (const dep of task.depends_on) {
         if (!names.has(dep)) {

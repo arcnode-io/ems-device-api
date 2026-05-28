@@ -38,6 +38,22 @@ interface AsyncApiSpec {
   "x-alarms"?: Record<string, readonly AlarmType[]>;
 }
 
+/**
+ * Assert every expected alarm id is present in the device's alarm catalog.
+ * Collapsed helper so the test body stays under the max-statements lint cap.
+ * @param alarms Alarm catalog under a single x-alarms[device_id] key
+ * @param expectedIds Alarm ids that must all be present
+ */
+function expectAlarmIds(
+  alarms: readonly AlarmType[] | undefined,
+  expectedIds: readonly string[],
+): void {
+  const ids = new Set((alarms ?? []).map((alarm) => alarm.id));
+  for (const expected of expectedIds) {
+    assert.ok(ids.has(expected), `missing alarm id: ${expected}`);
+  }
+}
+
 describe("AsyncAPI x-alarms (pilot DTM round-trip)", () => {
   test("DTM with populated alarms surfaces under x-alarms keyed by device_id", async () => {
     const pg = await startPostgres();
@@ -86,29 +102,30 @@ describe("AsyncAPI x-alarms (pilot DTM round-trip)", () => {
       assert.strictEqual(xAlarms["cdu_1"]?.length, 4, "cdu_1 alarm count");
 
       // Strong assertion on alarm IDs — catches drift in field naming or omission
-      const swgIds = new Set(xAlarms["switchgear_1"]!.map((a) => a.id));
-      assert.ok(swgIds.has("arc_flash_detected"));
-      assert.ok(swgIds.has("breaker_failure_50bf"));
-      assert.ok(swgIds.has("protective_overcurrent_trip"));
-      assert.ok(swgIds.has("breaker_close_coil_failure"));
-
-      const bessIds = new Set(xAlarms["bess_rack_1"]!.map((a) => a.id));
-      assert.ok(bessIds.has("pack_overtemperature"));
-      assert.ok(bessIds.has("cell_voltage_imbalance"));
-
-      const cduIds = new Set(xAlarms["cdu_1"]!.map((a) => a.id));
-      assert.ok(cduIds.has("secondary_loop_leak"));
-      assert.ok(cduIds.has("pump_failure_primary"));
+      expectAlarmIds(xAlarms["switchgear_1"], [
+        "arc_flash_detected",
+        "breaker_failure_50bf",
+        "protective_overcurrent_trip",
+        "breaker_close_coil_failure",
+      ]);
+      expectAlarmIds(xAlarms["bess_rack_1"], [
+        "pack_overtemperature",
+        "cell_voltage_imbalance",
+      ]);
+      expectAlarmIds(xAlarms["cdu_1"], [
+        "secondary_loop_leak",
+        "pump_failure_primary",
+      ]);
 
       // condition_source variants come through correctly (P1 SKU sanity check)
       const arcFlash = xAlarms["switchgear_1"]!.find(
-        (a) => a.id === "arc_flash_detected",
+        (alarm) => alarm.id === "arc_flash_detected",
       )!;
       assert.strictEqual(arcFlash.priority, "P1");
       assert.strictEqual(arcFlash.condition_source.type, "discrete_register");
 
       const cduLeak = xAlarms["cdu_1"]!.find(
-        (a) => a.id === "secondary_loop_leak",
+        (alarm) => alarm.id === "secondary_loop_leak",
       )!;
       assert.strictEqual(cduLeak.condition_source.type, "redfish_event");
     } finally {
