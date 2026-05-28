@@ -66,7 +66,11 @@ const BacnetIpBinding = z.strictObject({
 const BacnetScBinding = z.strictObject({
   protocol: z.literal("bacnet_sc"),
   hub_url: z.url().startsWith("wss://"),
-  device_vmac: z.string().regex(/^[0-9A-Fa-f]{2}(:[0-9A-Fa-f]{2}){5}$/),
+  device_vmac: z
+    .string()
+    .regex(
+      /^[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}:[0-9A-Fa-f]{2}$/,
+    ),
   object_type: z.enum(["analog_input"]),
   object_instance: z.number().int().nonnegative(),
   property_id: z.enum(["present_value"]),
