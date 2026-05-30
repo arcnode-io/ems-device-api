@@ -118,13 +118,13 @@ describe("AsyncAPI x-alarms (pilot DTM round-trip)", () => {
       ]);
 
       // condition_source variants come through correctly (P1 SKU sanity check)
-      const arcFlash = xAlarms["switchgear_1"]!.find(
+      const arcFlash = xAlarms["switchgear_1"].find(
         (alarm) => alarm.id === "arc_flash_detected",
       )!;
       assert.strictEqual(arcFlash.priority, "P1");
       assert.strictEqual(arcFlash.condition_source.type, "discrete_register");
 
-      const cduLeak = xAlarms["cdu_1"]!.find(
+      const cduLeak = xAlarms["cdu_1"].find(
         (alarm) => alarm.id === "secondary_loop_leak",
       )!;
       assert.strictEqual(cduLeak.condition_source.type, "redfish_event");

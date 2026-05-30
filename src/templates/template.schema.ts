@@ -200,6 +200,13 @@ export const ContainsEntry = z.strictObject({
   qty: z
     .union([z.literal("scalable"), z.number().int().positive()])
     .default("scalable"),
+  // Mirror of edp-api ContainsEntry.power_from (Python source of truth at
+  // edp-api/src/shared/schemas/template.py:112). Names sibling
+  // contains[].template slugs that supply AC power to this entry. Empty
+  // list = doesn't draw power (e.g. PDUs themselves, sensors). Multi-
+  // entry = 2N/N+1 redundant feeds; v1 cable schedule emits one row
+  // (primary feed). Accept-and-carry on device-api — no semantics here.
+  power_from: z.array(z.string()).default([]),
 });
 
 // ---------------------------------------------------------------------------

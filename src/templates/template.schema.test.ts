@@ -620,6 +620,19 @@ describe("ContainsEntry", () => {
     const msg = fail(ContainsEntry, { template: "some_module", extra: true });
     assert.ok(msg.length > 0);
   });
+
+  it("defaults power_from to empty list", () => {
+    const result = ok(ContainsEntry, { template: "some_module" });
+    assert.deepEqual(result.power_from, []);
+  });
+
+  it("accepts power_from list of template slugs", () => {
+    const result = ok(ContainsEntry, {
+      template: "gpu_node",
+      power_from: ["pdu"],
+    });
+    assert.deepEqual(result.power_from, ["pdu"]);
+  });
 });
 
 // ---------------------------------------------------------------------------
