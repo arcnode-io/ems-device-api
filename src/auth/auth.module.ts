@@ -9,6 +9,7 @@
 
 import { Module } from "@nestjs/common";
 import { JwtModule } from "@nestjs/jwt";
+import * as bcrypt from "bcrypt";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { JwtAuthGuard } from "./jwt-auth.guard";
@@ -19,18 +20,28 @@ import {
   type UserStore,
 } from "./auth.types";
 
+// bcrypt work factor for the boot-time hash of customer-set plaintext.
+// Only two hashes run, once, at startup — cost 10 is ~130ms total.
+const BCRYPT_COST = 10;
+
 /**
- * Read role bcrypt hashes from env. Both hashes must be present at startup —
- * missing means the deployment wasn't seeded properly.
- * @returns Two-role user store
- * @throws Error when either hash env var is unset
+ * Read plaintext role passwords from env and bcrypt-hash each into the
+ * in-memory store at boot. The customer's password arrives plaintext at
+ * deploy (CFN NoEcho param / ISO wizard); hashing here keeps bcrypt out of
+ * the deploy tooling. `/auth/login` still does bcrypt.compare against the
+ * stored hash — identical verification semantics, hash just derived at boot.
+ * @returns Two-role user store keyed by role → bcrypt hash
+ * @throws Error when either plaintext env var is unset
  */
 function loadUserStoreFromEnv(): UserStore {
-  const operator = process.env["AUTH_OPERATOR_PWHASH"];
-  const viewer = process.env["AUTH_VIEWER_PWHASH"];
-  if (!operator) throw new Error("AUTH_OPERATOR_PWHASH is required");
-  if (!viewer) throw new Error("AUTH_VIEWER_PWHASH is required");
-  return { operator, viewer };
+  const operator = process.env["AUTH_OPERATOR_PW"];
+  const viewer = process.env["AUTH_VIEWER_PW"];
+  if (!operator) throw new Error("AUTH_OPERATOR_PW is required");
+  if (!viewer) throw new Error("AUTH_VIEWER_PW is required");
+  return {
+    operator: bcrypt.hashSync(operator, BCRYPT_COST),
+    viewer: bcrypt.hashSync(viewer, BCRYPT_COST),
+  };
 }
 
 /**

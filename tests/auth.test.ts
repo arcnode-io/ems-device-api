@@ -12,7 +12,6 @@ import * as client from "supertest";
 import { App } from "supertest/types";
 import * as assert from "assert";
 import { describe, test, before, after } from "node:test";
-import * as bcrypt from "bcrypt";
 import { JwtService } from "@nestjs/jwt";
 import { AppModuleWithDatabase } from "../src/app.module";
 import { startPostgres } from "./fixtures/containers";
@@ -29,8 +28,8 @@ let pg: { stop: () => Promise<unknown>; url: string };
 
 before(async () => {
   process.env["AUTH_JWT_SECRET"] = JWT_SECRET;
-  process.env["AUTH_OPERATOR_PWHASH"] = await bcrypt.hash(OPERATOR_PW, 4);
-  process.env["AUTH_VIEWER_PWHASH"] = await bcrypt.hash(VIEWER_PW, 4);
+  process.env["AUTH_OPERATOR_PW"] = OPERATOR_PW;
+  process.env["AUTH_VIEWER_PW"] = VIEWER_PW;
   process.env["MQTT_OPERATOR_PASSWORD"] = OPERATOR_BROKER_PW;
   process.env["MQTT_VIEWER_PASSWORD"] = VIEWER_BROKER_PW;
 

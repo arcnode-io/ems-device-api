@@ -2,7 +2,6 @@
 
 import { GenericContainer, Wait } from "testcontainers";
 import { PostgreSqlContainer } from "@testcontainers/postgresql";
-import * as bcrypt from "bcrypt";
 
 /**
  * Seed the five AUTH_* / MQTT_* env vars that AuthModule reads at boot.
@@ -10,20 +9,17 @@ import * as bcrypt from "bcrypt";
  * want specific values (e.g. auth.test.ts) can set them first and keep
  * authority. Without this, unrelated integration tests would fail to
  * compile the Nest module because of missing-env throws in AuthModule
- * factories.
+ * factories. AuthModule bcrypt-hashes the plaintext PWs at boot.
  */
 function seedAuthTestEnvIfUnset(): void {
   if (!process.env["AUTH_JWT_SECRET"]) {
     process.env["AUTH_JWT_SECRET"] = "test-jwt-secret-default";
   }
-  // Reason: bcrypt hash of "test-placeholder" at cost 4 — fast for tests,
-  // never used in prod because real deploys seed real hashes.
-  const placeholder = bcrypt.hashSync("test-placeholder", 4);
-  if (!process.env["AUTH_OPERATOR_PWHASH"]) {
-    process.env["AUTH_OPERATOR_PWHASH"] = placeholder;
+  if (!process.env["AUTH_OPERATOR_PW"]) {
+    process.env["AUTH_OPERATOR_PW"] = "test-placeholder-operator";
   }
-  if (!process.env["AUTH_VIEWER_PWHASH"]) {
-    process.env["AUTH_VIEWER_PWHASH"] = placeholder;
+  if (!process.env["AUTH_VIEWER_PW"]) {
+    process.env["AUTH_VIEWER_PW"] = "test-placeholder-viewer";
   }
   if (!process.env["MQTT_OPERATOR_PASSWORD"]) {
     process.env["MQTT_OPERATOR_PASSWORD"] = "test-operator-broker-pw";
