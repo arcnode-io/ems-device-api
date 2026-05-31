@@ -9,9 +9,12 @@ import { loadConfig } from "./config";
 import { CallApiModule } from "./call-api/call-api.module";
 import { TopologyModule } from "./topology/topology.module";
 import { AsyncapiModule } from "./asyncapi/asyncapi.module";
+import { AuthModule } from './auth/auth.module';
 
 /**
- * Main application module without database dependencies for basic tests
+ * Main application module without database dependencies for basic tests.
+ * Excludes AuthModule (which requires env-seeded secrets at boot) — auth
+ * lives in AppModuleWithDatabase only.
  */
 @Module({
   imports: [CallApiModule],
@@ -47,6 +50,7 @@ export class AppModule {}
     CallApiModule,
     TopologyModule,
     AsyncapiModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [
