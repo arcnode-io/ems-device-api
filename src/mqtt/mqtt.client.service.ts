@@ -13,8 +13,11 @@ const RECONNECT_PERIOD_MS = 5000;
 /**
  * MQTT client wrapper. Connects to deployment broker on app boot,
  * publishes system/topology_changed on each topology mutation per
- * ADR-002 §3 + §10 + §11. Anonymous (no auth) per v1.
+ * ADR-002 §3 + §10 + §11. Authenticates as the `arcnode_device_api`
+ * File-RBAC identity (username in cfg, password from env
+ * MQTT_DEVICE_API_PASSWORD) — the broker rejects anonymous since v1 auth.
  */
+const PASSWORD_ENV = "MQTT_DEVICE_API_PASSWORD";
 @Injectable()
 export class MqttClientService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MqttClientService.name);
@@ -36,7 +39,13 @@ export class MqttClientService implements OnModuleInit, OnModuleDestroy {
       this.logger.warn("mqttBrokerUrl not configured; broadcasts disabled");
       return;
     }
-    this.client = connect(url, { reconnectPeriod: RECONNECT_PERIOD_MS });
+    const username = this.cfg.get<string>("mqttUsername");
+    const password = process.env[PASSWORD_ENV];
+    this.client = connect(url, {
+      username,
+      password,
+      reconnectPeriod: RECONNECT_PERIOD_MS,
+    });
     this.client.on("connect", () => this.logger.log(`mqtt connected ${url}`));
     this.client.on("error", (err) =>
       this.logger.warn(`mqtt error: ${err.message}`),
