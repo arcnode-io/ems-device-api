@@ -176,7 +176,7 @@ describe("projectDtmToView", () => {
     assert.deepEqual(view.buses, dtm.buses);
   });
 
-  it("retains deployment_uuid, mode, sizing_params", () => {
+  it("retains deployment_uuid, ems_mode, sizing_params", () => {
     // Arrange
     const dtm = baseDtm;
 
@@ -185,7 +185,20 @@ describe("projectDtmToView", () => {
 
     // Assert
     assert.equal(view.deployment_uuid, dtm.deployment_uuid);
-    assert.equal(view.mode, "sim");
+    assert.equal(view.ems_mode, "sim");
     assert.deepEqual(view.sizing_params, dtm.sizing_params);
+  });
+});
+
+describe("projectDtmToView ems_mode default", () => {
+  it("defaults ems_mode to sim when the DTM has no computed mode", () => {
+    // Arrange — hand-built DTMs (fixtures, tests) omit edp-api's computed mode.
+    const dtm = structuredClone(baseDtm);
+    delete (dtm as { mode?: string }).mode;
+    // Act
+    const view = projectDtmToView(dtm);
+    // Assert — the HMI's TopologyView schema REQUIRES ems_mode (sim|live);
+    // an absent field rejects the whole view and blanks the SPA.
+    assert.equal(view.ems_mode, "sim");
   });
 });

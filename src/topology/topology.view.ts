@@ -64,7 +64,10 @@ export interface DeviceView {
 /** Full sanitized DTM projection — same top-level shape as DTM minus gateway fields. */
 export interface DtmView {
   deployment_uuid: string;
-  mode: "sim" | "live" | undefined;
+  // HMI-facing name per its TopologyView schema (required enum there). The
+  // DTM-internal field is `mode` (edp-api computed, optional); absent =
+  // not-computed = not fully provisioned → default "sim".
+  ems_mode: "sim" | "live";
   sizing_ref: string | null;
   sizing_params: DtmType["sizing_params"];
   devices: Record<string, DeviceView>;
@@ -163,7 +166,7 @@ export function projectDtmToView(dtm: DtmType): DtmView {
   }
   return {
     deployment_uuid: dtm.deployment_uuid,
-    mode: dtm.mode,
+    ems_mode: dtm.mode ?? "sim",
     sizing_ref: dtm.sizing_ref ?? null,
     sizing_params: dtm.sizing_params,
     devices,
