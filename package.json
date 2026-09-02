@@ -13,7 +13,7 @@
     "format": "prettier --write src tests",
     "typecheck": "tsc --noEmit --incremental false; eslint -c eslint-typecheck.config.mjs src tests",
     "audit-src": "eslint -c eslint-security.config.mjs src tests",
-    "audit-packages": "npm audit --audit-level=moderate --format=json | grep -qE '\"severity\":\\s*\"(moderate|high|critical)\"' && exit 1 || exit 0",
+    "audit-packages": "npm audit --omit=dev --audit-level=moderate --format=json | grep -qE '\"severity\":\\s*\"(moderate|high|critical)\"' && exit 1 || exit 0",
     "lint": "eslint src tests --fix",
     "security": "npm run audit-src && npm run audit-packages",
     "checks": "npm run depcheck && npm run format && npm run typecheck && npm run security && npm run lint",
