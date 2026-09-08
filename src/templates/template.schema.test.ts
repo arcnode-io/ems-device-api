@@ -66,9 +66,10 @@ describe("TemplateKind", () => {
 });
 
 describe("Publisher", () => {
-  it("has line_controller, analyst, and gateway values", () => {
+  it("has line_controller, analyst, der_control_api, and gateway values", () => {
     assert.equal(Publisher.LINE_CONTROLLER, "line_controller");
     assert.equal(Publisher.ANALYST, "analyst");
+    assert.equal(Publisher.DER_CONTROL_API, "der_control_api");
     assert.equal(Publisher.GATEWAY, "gateway");
   });
 });
@@ -300,6 +301,16 @@ describe("Measurement", () => {
   it("accepts measurement with publisher", () => {
     const result = ok(Measurement, baseMeasurementWithPublisher);
     assert.equal(result.publisher, "line_controller");
+  });
+
+  it("accepts der_control_api as a publisher value", () => {
+    // Reason: ems-der-control-api (IEEE 2030.5 intake) publishes directly, no binding —
+    // same shape as line_controller. See edp-api der_dispatch.yaml.
+    const result = ok(Measurement, {
+      ...baseMeasurementWithPublisher,
+      publisher: "der_control_api",
+    });
+    assert.equal(result.publisher, "der_control_api");
   });
 
   it("rejects measurement with both binding and publisher", () => {
