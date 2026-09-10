@@ -338,6 +338,7 @@ None.
 | 📊 ml-engineer | ems-analyst-model |
 | 🛰️ embedded-engineer | dlr-operating-envelope, dlr-pst-sim |
 | 📟 electronics-engineer | dlr-pcb |
+| 🧔 devops-engineer | ~/engineering-with-ai/tooling-playbooks |
 
 
 ## Commits & CI
