@@ -85,7 +85,7 @@ export function buildSpec(dtm: DtmType, version: string): AsyncApi3Spec {
       description: `AsyncAPI v3 contract generated from DTM ${dtm.deployment_uuid}.`,
     },
     servers: DEFAULT_SERVERS,
-    channels: buildChannels(),
+    channels: buildChannels(dtm),
     operations: buildOperations(),
     components: buildComponents(templates),
     "x-protocol-source": buildProtocolSourceMap(dtm),
