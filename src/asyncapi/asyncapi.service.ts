@@ -4,7 +4,7 @@ import type { DtmType } from "../topology/dtm.schema";
 import { TopologyService } from "../topology/topology.service";
 import { buildSpec } from "./spec-generator";
 
-const ASYNCAPI_REACT_VERSION = "1.4.18";
+const ASYNCAPI_REACT_VERSION = "3.1.8";
 
 /**
  * Generates an AsyncAPI v3 spec from the persisted DTM and renders it in
@@ -66,7 +66,7 @@ export class AsyncapiService {
       "<script>",
       `const schema = ${json};`,
       "AsyncApiStandalone.render(",
-      "  { schema: { content: schema } },",
+      "  { schema },",
       '  document.getElementById("asyncapi-container")',
       ");",
       "</script>",

@@ -12,6 +12,7 @@ import {
   Device,
   Dtm,
   PROVISIONED_AT_COMMISSIONING,
+  SizingParams,
 } from "./dtm.schema";
 import { DeviceTemplate } from "../templates/template.schema";
 
@@ -122,6 +123,45 @@ const minimalDtm = {
   buses: [],
   templates_used: { bess_leaf: minimalLeafTemplate },
 };
+
+// ---------------------------------------------------------------------------
+// SizingParams
+// ---------------------------------------------------------------------------
+
+describe("SizingParams", () => {
+  it("accepts minimal params, defaulting ride_through_hours/bess_reserve_floor_mwh to 0", () => {
+    // Arrange / Act
+    const result = ok(SizingParams, minimalSizingParams);
+
+    // Assert
+    assert.equal(result.ride_through_hours, 0);
+    assert.equal(result.bess_reserve_floor_mwh, 0);
+  });
+
+  it("accepts explicit ride_through_hours and bess_reserve_floor_mwh", () => {
+    // Arrange
+    const input = {
+      ...minimalSizingParams,
+      ride_through_hours: 4,
+      bess_reserve_floor_mwh: 1.5,
+    };
+
+    // Act
+    const result = ok(SizingParams, input);
+
+    // Assert
+    assert.equal(result.ride_through_hours, 4);
+    assert.equal(result.bess_reserve_floor_mwh, 1.5);
+  });
+
+  it("rejects unknown fields (strict)", () => {
+    // Arrange / Act
+    const message = fail(SizingParams, { ...minimalSizingParams, extra: 1 });
+
+    // Assert
+    assert.match(message, /Unrecognized key/);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Connection

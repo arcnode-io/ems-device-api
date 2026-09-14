@@ -39,6 +39,10 @@ export const SizingParams = z.strictObject({
   P_compute_total_kW: z.number(),
   E_BESS_total_kWh: z.number(),
   T_coolant_setpoint_C: z.number(),
+  // Islanding ride-through reserve, set at order time — mirrors edp-api
+  // ConfiguratorPayload.ride_through_hours / dtm_primitives.SizingParams.
+  ride_through_hours: z.number().default(0),
+  bess_reserve_floor_mwh: z.number().default(0),
 });
 export type SizingParamsType = z.infer<typeof SizingParams>;
 
