@@ -68,8 +68,12 @@ const SYSTEM_BINDINGS = {
 type WireType = "float" | "bool" | "enum";
 type CommandPayloadType = WireType | "trigger";
 
-/** Distinct measurement names per wire type, alphabetical, across every
- * template referenced by the DTM. */
+/**
+ * Distinct measurement names per wire type, alphabetical, across every
+ * template referenced by the DTM.
+ * @param dtm The self-describing deployment manifest
+ * @returns Measurement names bucketed by float/bool/enum
+ */
 function measurementNamesByType(
   dtm: DtmType,
 ): Record<WireType, readonly string[]> {
@@ -90,8 +94,12 @@ function measurementNamesByType(
   };
 }
 
-/** Distinct bound command targets per payload type, alphabetical, across
- * every template referenced by the DTM. */
+/**
+ * Distinct bound command targets per payload type, alphabetical, across
+ * every template referenced by the DTM.
+ * @param dtm The self-describing deployment manifest
+ * @returns Command target names bucketed by float/bool/enum/trigger
+ */
 function commandTargetsByType(
   dtm: DtmType,
 ): Record<CommandPayloadType, readonly string[]> {
@@ -114,11 +122,20 @@ function commandTargetsByType(
   };
 }
 
+/**
+ * Sort a name set into a deterministic, human-readable order.
+ * @param names Names collected while walking the DTM
+ * @returns Names sorted alphabetically
+ */
 function orderedNames(names: Set<string>): readonly string[] {
   return [...names].sort((nameA, nameB) => nameA.localeCompare(nameB));
 }
 
-/** Every device id in the DTM, alphabetical. */
+/**
+ * Every device id in the DTM, alphabetical.
+ * @param dtm The self-describing deployment manifest
+ * @returns Device ids sorted alphabetically
+ */
 function deviceIds(dtm: DtmType): readonly string[] {
   return orderedNames(new Set(Object.keys(dtm.devices)));
 }
