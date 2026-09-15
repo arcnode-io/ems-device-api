@@ -26,6 +26,13 @@ export const BESS_MODULE_V1 = {
       display_name_default: "DC Voltage",
       publisher: "line_controller" as const,
     },
+    active_power: {
+      unit: "watts",
+      type: "float" as const,
+      poll_rate_hz: 1,
+      display_name_default: "Active Power",
+      publisher: "line_controller" as const,
+    },
     alarm_state: {
       unit: "none",
       type: "enum" as const,

@@ -821,6 +821,43 @@ describe("DeviceTemplate", () => {
     assert.ok(msg.includes("model forbidden for kind=module"), `got: ${msg}`);
   });
 
+  it("command whose target is a measurement of the template is accepted", () => {
+    const result = ok(DeviceTemplate, {
+      ...minimalModule,
+      commands: {
+        set_soc: {
+          verb: "set",
+          target: "soc",
+          unit: "%",
+          payload: "float",
+          fanout: "line_controller",
+        },
+      },
+    });
+    assert.equal(Object.keys(result.commands).length, 1);
+  });
+
+  it("command whose target is not a measurement of the template is rejected", () => {
+    const msg = fail(DeviceTemplate, {
+      ...minimalModule,
+      commands: {
+        set_active_power: {
+          verb: "set",
+          target: "active_power",
+          unit: "watts",
+          payload: "float",
+          fanout: "line_controller",
+        },
+      },
+    });
+    assert.ok(
+      msg.includes(
+        "command set_active_power: target active_power is not a measurement of this template",
+      ),
+      `got: ${msg}`,
+    );
+  });
+
   it("template without measurements OR commands is rejected", () => {
     const msg = fail(DeviceTemplate, {
       ...minimalLeaf,
@@ -851,15 +888,20 @@ describe("DeviceTemplate", () => {
     assert.ok(msg.length > 0);
   });
 
-  it("measurements defaults to empty record", () => {
-    const result = ok(DeviceTemplate, {
+  it("commands-only template is rejected: every command target must name a measurement", () => {
+    const msg = fail(DeviceTemplate, {
       ...minimalLeaf,
       measurements: undefined,
       commands: {
         set_power: baseCommandWithBinding,
       },
     });
-    assert.deepEqual(result.measurements, {});
+    assert.ok(
+      msg.includes(
+        "command set_power: target power_setpoint is not a measurement of this template",
+      ),
+      `got: ${msg}`,
+    );
   });
 
   it("commands defaults to empty record", () => {

@@ -289,6 +289,19 @@ export const DeviceTemplate = z
         }
       }
     }
+  })
+  // A command's value schema (enum labels, bounds) is derived from the
+  // measurement its target names — so the target must exist on this template.
+  .superRefine((tpl, ctx) => {
+    for (const [name, cmd] of Object.entries(tpl.commands)) {
+      if (!(cmd.target in tpl.measurements)) {
+        ctx.addIssue({
+          code: "custom",
+          message: `command ${name}: target ${cmd.target} is not a measurement of this template`,
+          path: ["commands", name, "target"],
+        });
+      }
+    }
   });
 
 // Public TypeScript types (inferred from Zod schemas)

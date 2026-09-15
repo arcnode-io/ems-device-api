@@ -16,7 +16,10 @@ interface ChannelParam {
   description?: string;
   examples?: string[];
 }
-type ChannelsShape = Record<string, { parameters: Record<string, ChannelParam> }>;
+type ChannelsShape = Record<
+  string,
+  { parameters: Record<string, ChannelParam> }
+>;
 
 /** DTM with a der_dispatch-shaped device (float + 2 bool measurements) plus
  * one bound float command, so both measurement and command example paths
@@ -89,7 +92,7 @@ function dtmWithDerDispatch(): DtmType {
         commands: {
           test_setpoint: {
             verb: "set",
-            target: "test_setpoint",
+            target: "target_active_power",
             unit: "watts",
             payload: "float",
             display_name_default: null,
@@ -113,31 +116,33 @@ function dtmWithDerDispatch(): DtmType {
 describe("buildChannels parameter examples", () => {
   it("surfaces float-measurement names as examples on measurementFloat.measurement", () => {
     const channels = buildChannels(dtmWithDerDispatch()) as ChannelsShape;
-    assert.deepEqual(channels.measurementFloat!.parameters.measurement!.examples, [
-      "target_active_power",
-    ]);
+    assert.deepEqual(
+      channels.measurementFloat!.parameters.measurement!.examples,
+      ["target_active_power"],
+    );
   });
 
   it("surfaces bool-measurement names, alphabetically, as examples on measurementBool.measurement", () => {
     const channels = buildChannels(dtmWithDerDispatch()) as ChannelsShape;
-    assert.deepEqual(channels.measurementBool!.parameters.measurement!.examples, [
-      "energize_enabled",
-      "event_active",
-    ]);
+    assert.deepEqual(
+      channels.measurementBool!.parameters.measurement!.examples,
+      ["energize_enabled", "event_active"],
+    );
   });
 
   it("surfaces bound command targets as examples on commandFloat.target", () => {
     const channels = buildChannels(dtmWithDerDispatch()) as ChannelsShape;
     assert.deepEqual(channels.commandFloat!.parameters.target!.examples, [
-      "test_setpoint",
+      "target_active_power",
     ]);
   });
 
   it("surfaces device ids as examples on device_id across every channel family", () => {
     const channels = buildChannels(dtmWithDerDispatch()) as ChannelsShape;
-    assert.deepEqual(channels.measurementFloat!.parameters.device_id!.examples, [
-      "der_dispatch_1",
-    ]);
+    assert.deepEqual(
+      channels.measurementFloat!.parameters.device_id!.examples,
+      ["der_dispatch_1"],
+    );
     assert.deepEqual(channels.commandFloat!.parameters.device_id!.examples, [
       "der_dispatch_1",
     ]);
@@ -145,8 +150,39 @@ describe("buildChannels parameter examples", () => {
 
   it("omits examples when no measurement of that type exists in the deployment", () => {
     const channels = buildChannels(dtmWithDerDispatch()) as ChannelsShape;
-    assert.equal(channels.measurementEnum!.parameters.measurement!.examples, undefined);
+    assert.equal(
+      channels.measurementEnum!.parameters.measurement!.examples,
+      undefined,
+    );
     assert.equal(channels.commandBool!.parameters.target!.examples, undefined);
+  });
+
+  it("lists the concrete messages of each family × wire-type on its channel, keeping the base sample", () => {
+    type Messages = Record<
+      string,
+      { messages: Record<string, { $ref: string }> }
+    >;
+    const channels = buildChannels(dtmWithDerDispatch()) as unknown as Messages;
+    assert.deepEqual(Object.keys(channels.measurementFloat!.messages).sort(), [
+      "DerDispatch_TargetActivePower",
+      "sample",
+    ]);
+    assert.equal(
+      channels.measurementFloat!.messages.DerDispatch_TargetActivePower!.$ref,
+      "#/components/messages/DerDispatch_TargetActivePowerMsg",
+    );
+    assert.deepEqual(Object.keys(channels.measurementBool!.messages).sort(), [
+      "DerDispatch_EnergizeEnabled",
+      "DerDispatch_EventActive",
+      "sample",
+    ]);
+    assert.deepEqual(Object.keys(channels.commandFloat!.messages).sort(), [
+      "DerDispatch_TestSetpoint",
+      "sample",
+    ]);
+    assert.deepEqual(Object.keys(channels.measurementEnum!.messages), [
+      "sample",
+    ]);
   });
 
   it("still returns exactly the 8 template-agnostic channels regardless of DTM content", () => {

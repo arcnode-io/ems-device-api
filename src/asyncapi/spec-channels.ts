@@ -18,6 +18,12 @@
  */
 
 import type { DtmType } from "../topology/dtm.schema";
+import {
+  buildConcreteMessages,
+  type ConcreteMessage,
+  type Family,
+  type WireType,
+} from "./spec-messages";
 
 const MQTT_BINDING_VERSION = "0.2.0";
 
@@ -65,8 +71,7 @@ const SYSTEM_BINDINGS = {
   bindingVersion: MQTT_BINDING_VERSION,
 };
 
-type WireType = "float" | "bool" | "enum";
-type CommandPayloadType = WireType | "trigger";
+type MeasurementWireType = Exclude<WireType, "trigger">;
 
 /**
  * Distinct measurement names per wire type, alphabetical, across every
@@ -76,8 +81,8 @@ type CommandPayloadType = WireType | "trigger";
  */
 function measurementNamesByType(
   dtm: DtmType,
-): Record<WireType, readonly string[]> {
-  const buckets: Record<WireType, Set<string>> = {
+): Record<MeasurementWireType, readonly string[]> {
+  const buckets: Record<MeasurementWireType, Set<string>> = {
     float: new Set(),
     bool: new Set(),
     enum: new Set(),
@@ -102,8 +107,8 @@ function measurementNamesByType(
  */
 function commandTargetsByType(
   dtm: DtmType,
-): Record<CommandPayloadType, readonly string[]> {
-  const buckets: Record<CommandPayloadType, Set<string>> = {
+): Record<WireType, readonly string[]> {
+  const buckets: Record<WireType, Set<string>> = {
     float: new Set(),
     bool: new Set(),
     enum: new Set(),
@@ -222,6 +227,32 @@ function commandChannel(
 }
 
 /**
+ * A channel's `messages` map: the base sample for the wire type plus every
+ * concrete per-template message of the same family × wire type (ADR-002 §6).
+ * @param concrete All concrete messages derived from the DTM's templates
+ * @param family measurement or command
+ * @param wireType float / bool / enum / trigger
+ * @param baseMsg Base message component name, e.g. `FloatSampleMsg`
+ * @returns AsyncAPI messages map keyed by message name
+ */
+function channelMessages(
+  concrete: readonly ConcreteMessage[],
+  family: Family,
+  wireType: WireType,
+  baseMsg: string,
+): Record<string, { $ref: string }> {
+  const out: Record<string, { $ref: string }> = {
+    sample: { $ref: `#/components/messages/${baseMsg}` },
+  };
+  for (const message of concrete) {
+    if (message.family === family && message.wireType === wireType) {
+      out[message.name] = { $ref: `#/components/messages/${message.name}Msg` };
+    }
+  }
+  return out;
+}
+
+/**
  * All channel templates — 8 total (3 measurement + 4 command + 1 system) —
  * always the same regardless of deployment size (see module doc). Parameter
  * `examples` are the only per-DTM variability here.
@@ -232,29 +263,43 @@ export function buildChannels(dtm: DtmType): Record<string, unknown> {
   const ids = deviceIds(dtm);
   const measurements = measurementNamesByType(dtm);
   const commands = commandTargetsByType(dtm);
+  const concrete = buildConcreteMessages(Object.values(dtm.templates_used));
 
   return {
     measurementFloat: {
       ...measurementChannel("Float-typed measurement", ids, measurements.float),
-      messages: {
-        sample: { $ref: "#/components/messages/FloatSampleMsg" },
-      },
+      messages: channelMessages(
+        concrete,
+        "measurement",
+        "float",
+        "FloatSampleMsg",
+      ),
     },
     measurementBool: {
-      ...measurementChannel("Boolean-typed measurement", ids, measurements.bool),
-      messages: {
-        sample: { $ref: "#/components/messages/BooleanSampleMsg" },
-      },
+      ...measurementChannel(
+        "Boolean-typed measurement",
+        ids,
+        measurements.bool,
+      ),
+      messages: channelMessages(
+        concrete,
+        "measurement",
+        "bool",
+        "BooleanSampleMsg",
+      ),
     },
     measurementEnum: {
       ...measurementChannel("Enum-typed measurement", ids, measurements.enum),
-      messages: {
-        sample: { $ref: "#/components/messages/EnumSampleMsg" },
-      },
+      messages: channelMessages(
+        concrete,
+        "measurement",
+        "enum",
+        "EnumSampleMsg",
+      ),
     },
     commandFloat: {
       ...commandChannel(SET_VERB, "Float setpoint target", ids, commands.float),
-      messages: { sample: { $ref: "#/components/messages/FloatSampleMsg" } },
+      messages: channelMessages(concrete, "command", "float", "FloatSampleMsg"),
     },
     commandBool: {
       ...commandChannel(
@@ -263,17 +308,25 @@ export function buildChannels(dtm: DtmType): Record<string, unknown> {
         ids,
         commands.bool,
       ),
-      messages: {
-        sample: { $ref: "#/components/messages/BooleanSampleMsg" },
-      },
+      messages: channelMessages(
+        concrete,
+        "command",
+        "bool",
+        "BooleanSampleMsg",
+      ),
     },
     commandEnum: {
       ...commandChannel(SET_VERB, "Enum mode target", ids, commands.enum),
-      messages: { sample: { $ref: "#/components/messages/EnumSampleMsg" } },
+      messages: channelMessages(concrete, "command", "enum", "EnumSampleMsg"),
     },
     commandTrigger: {
       ...commandChannel(TRIGGER_VERBS, "Trigger target", ids, commands.trigger),
-      messages: { sample: { $ref: "#/components/messages/TriggerSampleMsg" } },
+      messages: channelMessages(
+        concrete,
+        "command",
+        "trigger",
+        "TriggerSampleMsg",
+      ),
     },
     topologyChanged: {
       address: "system/topology_changed",
