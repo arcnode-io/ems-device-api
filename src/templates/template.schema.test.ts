@@ -75,8 +75,9 @@ describe("Publisher", () => {
 });
 
 describe("Fanout", () => {
-  it("has line_controller value", () => {
+  it("has line_controller and der_control_api values", () => {
     assert.equal(Fanout.LINE_CONTROLLER, "line_controller");
+    assert.equal(Fanout.DER_CONTROL_API, "der_control_api");
   });
 });
 
@@ -578,6 +579,14 @@ describe("Command", () => {
   it("accepts command with fanout", () => {
     const result = ok(Command, baseCommandWithFanout);
     assert.equal(result.fanout, "line_controller");
+  });
+
+  it("accepts fanout der_control_api (virtual der_dispatch commands)", () => {
+    const result = ok(Command, {
+      ...baseCommandWithFanout,
+      fanout: "der_control_api",
+    });
+    assert.equal(result.fanout, "der_control_api");
   });
 
   it("rejects command with both binding and fanout", () => {

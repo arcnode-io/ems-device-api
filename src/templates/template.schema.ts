@@ -41,6 +41,7 @@ export const Publisher = {
 
 export const Fanout = {
   LINE_CONTROLLER: "line_controller",
+  DER_CONTROL_API: "der_control_api",
 } as const;
 
 const TemplateKindSchema = z.enum(["leaf", "module"]);
@@ -50,7 +51,7 @@ const PublisherSchema = z.enum([
   "der_control_api",
   "gateway",
 ]);
-const FanoutSchema = z.enum(["line_controller"]);
+const FanoutSchema = z.enum(["line_controller", "der_control_api"]);
 
 // ---------------------------------------------------------------------------
 // Measurement
