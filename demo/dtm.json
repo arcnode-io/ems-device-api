@@ -1,0 +1,38 @@
+{
+  "deployment_uuid": "0b005226-e17a-4acf-861c-ac62870ef1e3",
+  "sizing_params": {
+    "P_compute_total_kW": 500,
+    "E_BESS_total_kWh": 2000,
+    "T_coolant_setpoint_C": 18
+  },
+  "devices": {
+    "bess_module_1": {
+      "device_id": "bess_module_1",
+      "template": "bess_module"
+    }
+  },
+  "buses": [],
+  "templates_used": {
+    "bess_module": {
+      "template": "bess_module",
+      "kind": "module",
+      "description": "BESS module aggregation — published rollups + setpoint fanout",
+      "measurements": {
+        "active_power": {
+          "unit": "watts",
+          "type": "float",
+          "publisher": "line_controller"
+        }
+      },
+      "commands": {
+        "set_active_power": {
+          "verb": "set",
+          "target": "active_power",
+          "unit": "watts",
+          "payload": "float",
+          "fanout": "line_controller"
+        }
+      }
+    }
+  }
+}
