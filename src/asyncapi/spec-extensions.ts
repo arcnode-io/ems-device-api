@@ -77,7 +77,13 @@ export function buildCommandSourceMap(dtm: DtmType): CommandSourceMap {
   return out;
 }
 
-/** Shared device-walk for building {@link buildProtocolSourceMap}. */
+/**
+ * Shared device-walk for building {@link buildProtocolSourceMap}.
+ * @param dtm The self-describing deployment manifest
+ * @param collect Per-template channel collector — the only thing that
+ *     differs between the measurement and command source maps
+ * @returns Map keyed by `device_id` -> `channel_name` -> whatever `collect` returned
+ */
 function buildSourceMap(
   dtm: DtmType,
   collect: (
