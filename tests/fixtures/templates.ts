@@ -24,14 +24,14 @@ export const BESS_MODULE_V1 = {
       type: "float" as const,
       poll_rate_hz: 0.5,
       display_name_default: "DC Voltage",
-      publisher: "line_controller" as const,
+      publisher: "local_process" as const,
     },
     active_power: {
       unit: "watts",
       type: "float" as const,
       poll_rate_hz: 1,
       display_name_default: "Active Power",
-      publisher: "line_controller" as const,
+      publisher: "local_process" as const,
     },
     alarm_state: {
       unit: "none",
@@ -42,7 +42,7 @@ export const BESS_MODULE_V1 = {
         fault: "fault",
       },
       display_name_default: "Alarm",
-      publisher: "line_controller" as const,
+      publisher: "local_process" as const,
     },
   },
   commands: {
@@ -52,7 +52,7 @@ export const BESS_MODULE_V1 = {
       unit: "watts",
       payload: "float" as const,
       display_name_default: "Active Power Setpoint",
-      fanout: "line_controller" as const,
+      fanout: "local_process" as const,
     },
   },
 };
@@ -66,7 +66,7 @@ export const BESS_RACK_V1 = {
       unit: "volts",
       type: "float" as const,
       poll_rate_hz: 0.5,
-      publisher: "line_controller" as const,
+      publisher: "local_process" as const,
     },
     rack_alarm: {
       unit: "none",
@@ -76,7 +76,7 @@ export const BESS_RACK_V1 = {
         warn: "warn",
         fault: "fault",
       },
-      publisher: "line_controller" as const,
+      publisher: "local_process" as const,
     },
   },
 };
@@ -175,12 +175,12 @@ export const COMPUTE_MODULE_V1 = {
     total_power_draw: {
       unit: "watts",
       type: "float" as const,
-      publisher: "line_controller" as const,
+      publisher: "local_process" as const,
     },
     utilization: {
       unit: "percent",
       type: "float" as const,
-      publisher: "line_controller" as const,
+      publisher: "local_process" as const,
     },
   },
 };

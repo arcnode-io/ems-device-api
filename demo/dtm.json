@@ -27,7 +27,7 @@
         "active_power": {
           "unit": "watts",
           "type": "float",
-          "publisher": "line_controller"
+          "publisher": "local_process"
         }
       },
       "commands": {
@@ -36,7 +36,7 @@
           "target": "active_power",
           "unit": "watts",
           "payload": "float",
-          "fanout": "line_controller"
+          "fanout": "local_process"
         }
       }
     },

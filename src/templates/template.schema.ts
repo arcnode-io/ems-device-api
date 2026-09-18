@@ -33,25 +33,25 @@ export const TemplateKind = {
 } as const;
 
 export const Publisher = {
-  LINE_CONTROLLER: "line_controller",
+  LOCAL_PROCESS: "local_process",
   ANALYST: "analyst",
   DER_CONTROL_API: "der_control_api",
   GATEWAY: "gateway",
 } as const;
 
 export const Fanout = {
-  LINE_CONTROLLER: "line_controller",
+  LOCAL_PROCESS: "local_process",
   DER_CONTROL_API: "der_control_api",
 } as const;
 
 const TemplateKindSchema = z.enum(["leaf", "module"]);
 const PublisherSchema = z.enum([
-  "line_controller",
+  "local_process",
   "analyst",
   "der_control_api",
   "gateway",
 ]);
-const FanoutSchema = z.enum(["line_controller", "der_control_api"]);
+const FanoutSchema = z.enum(["local_process", "der_control_api"]);
 
 // ---------------------------------------------------------------------------
 // Measurement

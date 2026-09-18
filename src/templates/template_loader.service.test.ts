@@ -189,7 +189,7 @@ describe("TemplateLoaderService", () => {
         "    iec_61850_ref: MMXU.W",
         "    bounds: { min: -1000000, max: 1000000, nominal: 0 }",
         "    thresholds: { warn_min: -800000, warn_max: 800000, alarm_min: -950000, alarm_max: 950000 }",
-        "    publisher: line_controller",
+        "    publisher: local_process",
       ].join("\n"),
     );
 

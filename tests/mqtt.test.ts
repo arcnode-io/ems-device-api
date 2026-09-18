@@ -21,7 +21,7 @@ const TEMPLATE_BESS = {
     voltage_dc: {
       unit: "volts",
       type: "float" as const,
-      publisher: "line_controller" as const,
+      publisher: "local_process" as const,
     },
   },
   commands: {},

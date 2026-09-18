@@ -100,7 +100,7 @@ const minimalModuleTemplate = {
       iec_61850_ref: "ZBAT.BatChaSt",
       bounds: socBounds,
       thresholds: socThresholds,
-      publisher: "line_controller" as const,
+      publisher: "local_process" as const,
     },
   },
 };

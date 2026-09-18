@@ -187,7 +187,7 @@ function dtmWithAlarms(): DtmType {
               alarm_max: 95,
             },
             values: null,
-            publisher: "line_controller",
+            publisher: "local_process",
             binding: null,
           },
         },

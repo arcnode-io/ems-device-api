@@ -66,8 +66,8 @@ describe("TemplateKind", () => {
 });
 
 describe("Publisher", () => {
-  it("has line_controller, analyst, der_control_api, and gateway values", () => {
-    assert.equal(Publisher.LINE_CONTROLLER, "line_controller");
+  it("has local_process, analyst, der_control_api, and gateway values", () => {
+    assert.equal(Publisher.LOCAL_PROCESS, "local_process");
     assert.equal(Publisher.ANALYST, "analyst");
     assert.equal(Publisher.DER_CONTROL_API, "der_control_api");
     assert.equal(Publisher.GATEWAY, "gateway");
@@ -75,8 +75,8 @@ describe("Publisher", () => {
 });
 
 describe("Fanout", () => {
-  it("has line_controller and der_control_api values", () => {
-    assert.equal(Fanout.LINE_CONTROLLER, "line_controller");
+  it("has local_process and der_control_api values", () => {
+    assert.equal(Fanout.LOCAL_PROCESS, "local_process");
     assert.equal(Fanout.DER_CONTROL_API, "der_control_api");
   });
 });
@@ -290,7 +290,7 @@ const baseMeasurementWithPublisher = {
   iec_61850_ref: "MMXU.W",
   bounds: baseBounds,
   thresholds: baseThresholds,
-  publisher: "line_controller" as const,
+  publisher: "local_process" as const,
 };
 
 describe("Measurement", () => {
@@ -301,12 +301,12 @@ describe("Measurement", () => {
 
   it("accepts measurement with publisher", () => {
     const result = ok(Measurement, baseMeasurementWithPublisher);
-    assert.equal(result.publisher, "line_controller");
+    assert.equal(result.publisher, "local_process");
   });
 
   it("accepts der_control_api as a publisher value", () => {
     // Reason: ems-der-control-api (IEEE 2030.5 intake) publishes directly, no binding —
-    // same shape as line_controller. See edp-api der_dispatch.yaml.
+    // same shape as local_process. See edp-api der_dispatch.yaml.
     const result = ok(Measurement, {
       ...baseMeasurementWithPublisher,
       publisher: "der_control_api",
@@ -317,7 +317,7 @@ describe("Measurement", () => {
   it("rejects measurement with both binding and publisher", () => {
     const msg = fail(Measurement, {
       ...baseMeasurementWithBinding,
-      publisher: "line_controller",
+      publisher: "local_process",
     });
     assert.ok(msg.includes("exactly one of binding/publisher"), `got: ${msg}`);
   });
@@ -362,7 +362,7 @@ describe("Measurement", () => {
         formula: "subtract",
         inputs: ["a", "b"],
       },
-      publisher: "line_controller",
+      publisher: "local_process",
     });
     assert.ok(msg.length > 0, `expected validation error, got: ${msg}`);
   });
@@ -567,7 +567,7 @@ const baseCommandWithFanout = {
   target: "power_setpoint",
   unit: "W",
   payload: "float" as const,
-  fanout: "line_controller" as const,
+  fanout: "local_process" as const,
 };
 
 describe("Command", () => {
@@ -578,7 +578,7 @@ describe("Command", () => {
 
   it("accepts command with fanout", () => {
     const result = ok(Command, baseCommandWithFanout);
-    assert.equal(result.fanout, "line_controller");
+    assert.equal(result.fanout, "local_process");
   });
 
   it("accepts fanout der_control_api (virtual der_dispatch commands)", () => {
@@ -592,7 +592,7 @@ describe("Command", () => {
   it("rejects command with both binding and fanout", () => {
     const msg = fail(Command, {
       ...baseCommandWithBinding,
-      fanout: "line_controller",
+      fanout: "local_process",
     });
     assert.ok(msg.includes("exactly one of binding/fanout"), `got: ${msg}`);
   });
@@ -759,7 +759,7 @@ const minimalModule = {
         alarm_min: 5,
         alarm_max: 95,
       },
-      publisher: "line_controller",
+      publisher: "local_process",
     },
   },
 };
@@ -839,7 +839,7 @@ describe("DeviceTemplate", () => {
           target: "soc",
           unit: "%",
           payload: "float",
-          fanout: "line_controller",
+          fanout: "local_process",
         },
       },
     });
@@ -855,7 +855,7 @@ describe("DeviceTemplate", () => {
           target: "active_power",
           unit: "watts",
           payload: "float",
-          fanout: "line_controller",
+          fanout: "local_process",
         },
       },
     });
