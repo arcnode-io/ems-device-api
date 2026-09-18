@@ -9,8 +9,93 @@ import { describe, it } from "node:test";
 import {
   buildAlarmsMap,
   buildProtocolSourceMap,
+  buildCommandSourceMap,
 } from "./spec-extensions";
 import type { DtmType } from "../topology/dtm.schema";
+
+/**
+ * Minimal DTM with a real bound command (mirrors bess_rack.set_active_power:
+ * a real Modbus write, function_code 16) alongside a bound measurement on
+ * the same device, so the two source maps can be told apart.
+ */
+function dtmWithBoundCommand(): DtmType {
+  return {
+    deployment_uuid: "00000000-0000-0000-0000-000000000bbb",
+    sizing_params: {
+      P_compute_total_kW: 100,
+      E_BESS_total_kWh: 200,
+      T_coolant_setpoint_C: 18,
+    },
+    devices: {
+      bess_rack_1: {
+        device_id: "bess_rack_1",
+        template: "bess_rack",
+        parent: null,
+        display_name: null,
+        connection: null,
+      },
+    },
+    buses: [],
+    templates_used: {
+      bess_rack: {
+        template: "bess_rack",
+        kind: "leaf",
+        equipment_id: "EXT-BESS-001",
+        vendor: "Tesla",
+        model: "Megapack 2 XL",
+        description: "bound-command fixture",
+        contains: [],
+        measurements: {
+          active_power: {
+            unit: "watts",
+            type: "float",
+            iec_61850_ref: "MMXU.W",
+            poll_rate_hz: 1,
+            display_name_default: null,
+            bounds: { min: -4000000, max: 4000000, nominal: 0 },
+            thresholds: {
+              warn_min: -3800000,
+              warn_max: 3800000,
+              alarm_min: -4000000,
+              alarm_max: 4000000,
+            },
+            values: null,
+            publisher: null,
+            binding: {
+              protocol: "modbus_tcp",
+              function_code: 3,
+              address: 10,
+              data_type: "int32",
+              word_order: "high_low",
+              scale: 1.0,
+              offset: 0.0,
+            },
+          },
+        },
+        commands: {
+          set_active_power: {
+            verb: "set",
+            target: "active_power",
+            unit: "watts",
+            payload: "float",
+            display_name_default: null,
+            fanout: null,
+            binding: {
+              protocol: "modbus_tcp",
+              function_code: 16,
+              address: 50,
+              data_type: "int32",
+              word_order: "high_low",
+              scale: 1.0,
+              offset: 0.0,
+            },
+          },
+        },
+        alarms: [],
+      },
+    },
+  } as unknown as DtmType;
+}
 
 /**
  * Minimal DTM that exercises a synthetic binding on a module-kind device.
@@ -276,5 +361,49 @@ describe("buildProtocolSourceMap synthetic placeholder substitution", () => {
     // Assert — modbus binding fields intact, no substitution happened
     assert.equal((headroom as { protocol: string }).protocol, "modbus_tcp");
     assert.equal((headroom as { function_code: number }).function_code, 3);
+  });
+});
+
+describe("x-protocol-source / x-command-source split", () => {
+  it("buildProtocolSourceMap never includes a bound command", () => {
+    // Arrange
+    const dtm = dtmWithBoundCommand();
+
+    // Act
+    const map = buildProtocolSourceMap(dtm);
+
+    // Assert — only the measurement shows up, never set_active_power
+    assert.deepEqual(Object.keys(map.bess_rack_1 ?? {}), ["active_power"]);
+  });
+
+  it("buildCommandSourceMap includes the bound command with verb + target", () => {
+    // Arrange
+    const dtm = dtmWithBoundCommand();
+
+    // Act
+    const map = buildCommandSourceMap(dtm);
+    const entry = map.bess_rack_1?.set_active_power as
+      | Record<string, unknown>
+      | undefined;
+
+    // Assert — the fields a consumer resolving commands/set/active_power/watts
+    // actually needs, present without guessing from the channel name
+    assert.ok(entry, "expected set_active_power in x-command-source");
+    assert.equal(entry.verb, "set");
+    assert.equal(entry.target, "active_power");
+    assert.equal(entry.protocol, "modbus_tcp");
+    assert.equal(entry.function_code, 16);
+    assert.equal(entry.address, 50);
+  });
+
+  it("buildCommandSourceMap never includes a bound measurement", () => {
+    // Arrange
+    const dtm = dtmWithBoundCommand();
+
+    // Act
+    const map = buildCommandSourceMap(dtm);
+
+    // Assert — only the command shows up, never active_power
+    assert.deepEqual(Object.keys(map.bess_rack_1 ?? {}), ["set_active_power"]);
   });
 });

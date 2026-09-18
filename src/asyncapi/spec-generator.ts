@@ -3,8 +3,9 @@
  *
  * Produces the wire shape mandated by ADR-002: templated channels with
  * parameters (one per family × wire-type), operation-level MQTT bindings,
- * four sample schemas under components, top-level x-protocol-source map
- * for gateway codegen, and x-enum-values for HMI typed-union codegen.
+ * four sample schemas under components, top-level x-protocol-source /
+ * x-command-source maps for gateway codegen, and x-enum-values for HMI
+ * typed-union codegen.
  *
  * Channels and components are template-agnostic at the spec level —
  * per-device variability lives entirely in the x-* extensions, keeping the
@@ -19,9 +20,11 @@ import { buildChannels, buildOperations } from "./spec-channels";
 import {
   buildAlarmsMap,
   buildProtocolSourceMap,
+  buildCommandSourceMap,
   buildEnumValuesMap,
   type AlarmsMap,
   type ProtocolSourceMap,
+  type CommandSourceMap,
   type EnumValuesMap,
 } from "./spec-extensions";
 
@@ -62,6 +65,7 @@ interface AsyncApi3Spec {
     schemas: Record<string, unknown>;
   };
   "x-protocol-source": ProtocolSourceMap;
+  "x-command-source": CommandSourceMap;
   "x-enum-values": EnumValuesMap;
   "x-alarms": AlarmsMap;
 }
@@ -89,6 +93,7 @@ export function buildSpec(dtm: DtmType, version: string): AsyncApi3Spec {
     operations: buildOperations(),
     components: buildComponents(templates),
     "x-protocol-source": buildProtocolSourceMap(dtm),
+    "x-command-source": buildCommandSourceMap(dtm),
     "x-enum-values": buildEnumValuesMap(templates),
     "x-alarms": buildAlarmsMap(dtm),
   };

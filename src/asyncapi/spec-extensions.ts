@@ -2,9 +2,18 @@
  * x-* extensions for the AsyncAPI v3 spec.
  *
  * - `x-protocol-source` — keyed by `device_id` -> `channel_name`, carries
- *   the Modbus/SNMP/etc. binding metadata the gateway needs to translate raw
- *   protocol values to engineering units. Lives at top level (not per-channel)
- *   because channels are templated and bindings are per-instance.
+ *   the Modbus/SNMP/etc. binding metadata a poll loop needs to translate raw
+ *   protocol values to engineering units. Measurements only. Lives at top
+ *   level (not per-channel) because channels are templated and bindings are
+ *   per-instance.
+ * - `x-command-source` — commands only, kept as its own map rather than
+ *   merged with `x-protocol-source`: a command's binding (e.g. a Modbus
+ *   write register) is never something to poll, and a consumer walking one
+ *   map has no way to accidentally pick up the other. Entries carry `verb`
+ *   and `target` explicitly, because a command arrives over MQTT addressed
+ *   by `commands/{verb}/{target}/{unit}` — the wire never carries the
+ *   template's own command name, so a consumer resolving a topic to an
+ *   entry needs verb+target as real fields, not a name it has to guess.
  * - `x-enum-values` — keyed by `${template}.${measurement}`, lists the
  *   allowed string labels for enum measurements. Template-scoped (not
  *   per-instance) because enum vocabulary is a template-level contract.
@@ -24,6 +33,9 @@ import type {
 /** Per-device, per-channel protocol source map. */
 export type ProtocolSourceMap = Record<string, Record<string, unknown>>;
 
+/** Per-device, per-channel command source map — entries additionally carry verb + target. */
+export type CommandSourceMap = Record<string, Record<string, unknown>>;
+
 /** Per-template enum vocabulary map. */
 export type EnumValuesMap = Record<string, readonly string[]>;
 
@@ -32,7 +44,7 @@ export type AlarmsMap = Record<string, readonly AlarmType[]>;
 
 /**
  * Walk every device in the DTM, look up its template in `templates_used`,
- * and project per-measurement/command `binding` fields into a per-device,
+ * and project each measurement's `binding` field into a per-device,
  * per-channel-name map. Each entry merges the template's binding with the
  * device's `connection` block (host/port/unit_id) so consumers have
  * everything needed to drive the protocol in one place.
@@ -42,11 +54,43 @@ export type AlarmsMap = Record<string, readonly AlarmType[]>;
  * @returns Map keyed by `device_id` -> `channel_name` -> binding + connection
  */
 export function buildProtocolSourceMap(dtm: DtmType): ProtocolSourceMap {
+  return buildSourceMap(dtm, collectMeasurementBindings);
+}
+
+/**
+ * The command-side mirror of {@link buildProtocolSourceMap} — same
+ * per-device/per-channel-name keying, commands only, entries carry `verb`
+ * and `target` (see the module docblock for why). Devices with a bound
+ * command reuse the same device_id key as their `x-protocol-source` entry
+ * if they have one.
+ * @param dtm The self-describing deployment manifest
+ * @returns Map keyed by `device_id` -> `channel_name` -> binding + connection + verb + target
+ */
+export function buildCommandSourceMap(dtm: DtmType): CommandSourceMap {
+  const out: CommandSourceMap = {};
+  for (const [deviceId, device] of Object.entries(dtm.devices)) {
+    const tpl = dtm.templates_used[device.template];
+    if (!tpl) continue;
+    const entries = collectCommandBindings(tpl, device.connection ?? null, deviceId);
+    if (Object.keys(entries).length > 0) out[deviceId] = entries;
+  }
+  return out;
+}
+
+/** Shared device-walk for building {@link buildProtocolSourceMap}. */
+function buildSourceMap(
+  dtm: DtmType,
+  collect: (
+    tpl: DeviceTemplateType,
+    connection: ConnectionFields,
+    deviceId: string,
+  ) => Record<string, ProtocolSourceEntry>,
+): ProtocolSourceMap {
   const out: ProtocolSourceMap = {};
   for (const [deviceId, device] of Object.entries(dtm.devices)) {
     const tpl = dtm.templates_used[device.template];
     if (!tpl) continue;
-    const entries = collectBindings(tpl, device.connection ?? null, deviceId);
+    const entries = collect(tpl, device.connection ?? null, deviceId);
     if (Object.keys(entries).length > 0) out[deviceId] = entries;
   }
   return out;
@@ -73,18 +117,29 @@ type ChannelMeta = {
 type ProtocolSourceEntry = BindingType & ConnectionFields & ChannelMeta;
 
 /**
- * Collect all binding-bearing measurements and commands from a template,
- * merging in the device's connection (host/port/unit_id) plus channel meta
- * (`unit`, `poll_rate_hz`) so consumers see the complete protocol-instance
- * picture in one entry. For synthetic bindings, substitute `{device_id}` in
- * the `inputs[]` array with the instantiating `deviceId`. `{site_id}` stays
+ * A command's verb + target — the two things an inbound `commands/{verb}/
+ * {target}/{unit}` topic actually carries, so a consumer can resolve the
+ * right entry without knowing (or guessing) the template's command name.
+ */
+type CommandIdentity = { verb: string; target: string };
+
+/** Fully merged command entry: binding ∪ connection ∪ unit ∪ verb/target. */
+type CommandSourceEntry = BindingType &
+  ConnectionFields & { unit: string } & CommandIdentity;
+
+/**
+ * Collect all binding-bearing measurements from a template, merging in the
+ * device's connection (host/port/unit_id) plus channel meta (`unit`,
+ * `poll_rate_hz`) so consumers see the complete protocol-instance picture in
+ * one entry. For synthetic bindings, substitute `{device_id}` in the
+ * `inputs[]` array with the instantiating `deviceId`. `{site_id}` stays
  * unresolved — gateway substitutes from its deployment config at runtime.
- * @param tpl Validated DeviceTemplate with measurements and commands
+ * @param tpl Validated DeviceTemplate with measurements
  * @param connection Device-level connection block (host/port/unit_id), or null
  * @param deviceId The instantiating device's id, used for `{device_id}` substitution
  * @returns Map of channel name -> binding + connection + channel meta
  */
-function collectBindings(
+function collectMeasurementBindings(
   tpl: DeviceTemplateType,
   connection: ConnectionFields,
   deviceId: string,
@@ -105,6 +160,32 @@ function collectBindings(
       } as ProtocolSourceEntry;
     }
   }
+  return out;
+}
+
+/**
+ * Collect all binding-bearing commands from a template — the command-side
+ * mirror of {@link collectMeasurementBindings}, kept in its own map rather
+ * than merged with measurements. A consumer that walks `x-protocol-source`
+ * to spawn read-poll tasks must never see a write-only command channel;
+ * this keeps that true by construction rather than by a filter someone has
+ * to remember to write. Entries carry `verb`/`target` (not just the
+ * template's own command name as the map key) because that's what an
+ * inbound command topic actually addresses — a name like `approve_dispatch`
+ * doesn't derive from its `verb: enable, target: event_active` pair, so a
+ * consumer resolving a topic needs the real fields, not a guess.
+ * @param tpl Validated DeviceTemplate with commands
+ * @param connection Device-level connection block (host/port/unit_id), or null
+ * @param deviceId The instantiating device's id, used for `{device_id}` substitution
+ * @returns Map of channel name -> binding + connection + verb + target
+ */
+function collectCommandBindings(
+  tpl: DeviceTemplateType,
+  connection: ConnectionFields,
+  deviceId: string,
+): Record<string, CommandSourceEntry> {
+  const out: Record<string, CommandSourceEntry> = {};
+  const conn = connection ?? ({} as ConnectionFields);
   for (const [name, cmd] of Object.entries(tpl.commands)) {
     if (cmd.binding !== null && cmd.binding !== undefined) {
       const resolvedBinding = resolveDeviceIdPlaceholder(cmd.binding, deviceId);
@@ -112,7 +193,9 @@ function collectBindings(
         ...conn,
         ...resolvedBinding,
         unit: cmd.unit,
-      } as ProtocolSourceEntry;
+        verb: cmd.verb,
+        target: cmd.target,
+      } as CommandSourceEntry;
     }
   }
   return out;
