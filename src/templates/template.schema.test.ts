@@ -75,9 +75,8 @@ describe("Publisher", () => {
 });
 
 describe("Fanout", () => {
-  it("has local_process and der_control_api values", () => {
+  it("has local_process value", () => {
     assert.equal(Fanout.LOCAL_PROCESS, "local_process");
-    assert.equal(Fanout.DER_CONTROL_API, "der_control_api");
   });
 });
 
@@ -579,14 +578,6 @@ describe("Command", () => {
   it("accepts command with fanout", () => {
     const result = ok(Command, baseCommandWithFanout);
     assert.equal(result.fanout, "local_process");
-  });
-
-  it("accepts fanout der_control_api (virtual der_dispatch commands)", () => {
-    const result = ok(Command, {
-      ...baseCommandWithFanout,
-      fanout: "der_control_api",
-    });
-    assert.equal(result.fanout, "der_control_api");
   });
 
   it("rejects command with both binding and fanout", () => {

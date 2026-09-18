@@ -41,7 +41,6 @@ export const Publisher = {
 
 export const Fanout = {
   LOCAL_PROCESS: "local_process",
-  DER_CONTROL_API: "der_control_api",
 } as const;
 
 const TemplateKindSchema = z.enum(["leaf", "module"]);
@@ -51,7 +50,7 @@ const PublisherSchema = z.enum([
   "der_control_api",
   "gateway",
 ]);
-const FanoutSchema = z.enum(["local_process", "der_control_api"]);
+const FanoutSchema = z.enum(["local_process"]);
 
 // ---------------------------------------------------------------------------
 // Measurement
