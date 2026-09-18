@@ -65,7 +65,7 @@ function dtmWithSyntheticHeadroom(): DtmType {
             publisher: "gateway",
             binding: {
               protocol: "synthetic",
-              formula: "subtract",
+              operation: "subtract",
               inputs: [
                 "sites/{site_id}/devices/operating_envelope/measurements/import_limit/watts",
                 "sites/{site_id}/devices/{device_id}/measurements/active_power/watts",

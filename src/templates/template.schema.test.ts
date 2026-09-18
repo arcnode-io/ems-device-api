@@ -143,7 +143,7 @@ describe("Binding", () => {
   it("parses SyntheticBinding", () => {
     const result = ok(Binding, {
       protocol: "synthetic",
-      formula: "subtract",
+      operation: "subtract",
       inputs: [
         "sites/{site_id}/devices/operating_envelope/measurements/import_limit/watts",
         "sites/{site_id}/devices/{device_id}/measurements/active_power/watts",
@@ -151,14 +151,14 @@ describe("Binding", () => {
     });
     assert.equal(result.protocol, "synthetic");
     if (result.protocol !== "synthetic") throw new Error("expected synthetic");
-    assert.equal(result.formula, "subtract");
+    assert.equal(result.operation, "subtract");
     assert.equal(result.inputs.length, 2);
   });
 
-  it("SyntheticBinding: rejects formula outside enum", () => {
+  it("SyntheticBinding: rejects operation outside enum", () => {
     const msg = fail(Binding, {
       protocol: "synthetic",
-      formula: "divide",
+      operation: "divide",
       inputs: ["a", "b"],
     });
     assert.ok(msg.length > 0);
@@ -342,7 +342,7 @@ describe("Measurement", () => {
       thresholds: baseThresholds,
       binding: {
         protocol: "synthetic",
-        formula: "subtract",
+        operation: "subtract",
         inputs: ["a", "b"],
       },
     });
@@ -359,7 +359,7 @@ describe("Measurement", () => {
       thresholds: baseThresholds,
       binding: {
         protocol: "synthetic",
-        formula: "subtract",
+        operation: "subtract",
         inputs: ["a", "b"],
       },
       publisher: "local_process",
@@ -376,7 +376,7 @@ describe("Measurement", () => {
       thresholds: baseThresholds,
       binding: {
         protocol: "synthetic",
-        formula: "subtract",
+        operation: "subtract",
         inputs: ["a", "b"],
       },
       publisher: "gateway",
@@ -384,7 +384,7 @@ describe("Measurement", () => {
     assert.equal(result.publisher, "gateway");
     if (result.binding?.protocol !== "synthetic")
       throw new Error("expected synthetic binding");
-    assert.equal(result.binding.formula, "subtract");
+    assert.equal(result.binding.operation, "subtract");
   });
 
   it("type=enum requires values", () => {

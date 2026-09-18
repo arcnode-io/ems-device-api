@@ -79,7 +79,7 @@ const BacnetScBinding = z.strictObject({
 // Gateway-side pure-function derivation from cached MQTT inputs.
 // Synthetic channels do NOT poll a south-side device. The gateway subscribes
 // to the topics listed in `inputs`, caches latest values per topic, ticks at
-// the measurement's poll_rate_hz, applies `formula` over cached values, and
+// the measurement's poll_rate_hz, applies `operation` over cached values, and
 // publishes the result. Holds (no publish) until every input is cached.
 //
 // Input topics may contain `{site_id}` (gateway runtime substitution from
@@ -87,7 +87,7 @@ const BacnetScBinding = z.strictObject({
 // time with the instantiating device's id).
 const SyntheticBinding = z.strictObject({
   protocol: z.literal("synthetic"),
-  formula: z.enum(["subtract", "sum", "mean", "max", "min"]),
+  operation: z.enum(["subtract", "sum", "mean", "max", "min"]),
   inputs: z.array(z.string()),
 });
 
