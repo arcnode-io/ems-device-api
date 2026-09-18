@@ -21,10 +21,13 @@ type ChannelsShape = Record<
   { parameters: Record<string, ChannelParam> }
 >;
 
-/** DTM with a der_dispatch-shaped device (float + 2 bool measurements) plus
- * one bound float command, so both measurement and command example paths
- * get exercised. */
-function dtmWithDerDispatch(): DtmType {
+/**
+ * Generic device with one float measurement + two bool measurements + one
+ * bound float command, so both measurement and command example paths get
+ * exercised. Deliberately not shaped after any real template — this test
+ * only cares that names round-trip into channel `examples`.
+ */
+function dtmWithExampleDevice(): DtmType {
   return {
     deployment_uuid: "00000000-0000-0000-0000-000000000ccc",
     sizing_params: {
@@ -33,9 +36,9 @@ function dtmWithDerDispatch(): DtmType {
       T_coolant_setpoint_C: 1,
     },
     devices: {
-      der_dispatch_1: {
-        device_id: "der_dispatch_1",
-        template: "der_dispatch",
+      example_device_1: {
+        device_id: "example_device_1",
+        template: "example_device",
         parent: null,
         display_name: null,
         connection: null,
@@ -43,16 +46,16 @@ function dtmWithDerDispatch(): DtmType {
     },
     buses: [],
     templates_used: {
-      der_dispatch: {
-        template: "der_dispatch",
+      example_device: {
+        template: "example_device",
         kind: "leaf",
-        equipment_id: "GRD-DER-001",
-        vendor: "ARCNODE",
-        model: "DER Dispatch Intake",
+        equipment_id: "EQ-EXAMPLE-001",
+        vendor: "ACME",
+        model: "Example Leaf",
         description: "fixture",
         contains: [],
         measurements: {
-          target_active_power: {
+          active_power: {
             unit: "watts",
             type: "float",
             iec_61850_ref: null,
@@ -61,10 +64,10 @@ function dtmWithDerDispatch(): DtmType {
             bounds: null,
             thresholds: null,
             values: null,
-            publisher: "der_control_api",
+            publisher: "local_process",
             binding: null,
           },
-          event_active: {
+          interlock_engaged: {
             unit: "none",
             type: "bool",
             iec_61850_ref: null,
@@ -73,10 +76,10 @@ function dtmWithDerDispatch(): DtmType {
             bounds: null,
             thresholds: null,
             values: null,
-            publisher: "der_control_api",
+            publisher: "local_process",
             binding: null,
           },
-          energize_enabled: {
+          breaker_closed: {
             unit: "none",
             type: "bool",
             iec_61850_ref: null,
@@ -85,14 +88,14 @@ function dtmWithDerDispatch(): DtmType {
             bounds: null,
             thresholds: null,
             values: null,
-            publisher: "der_control_api",
+            publisher: "local_process",
             binding: null,
           },
         },
         commands: {
-          test_setpoint: {
+          set_active_power: {
             verb: "set",
-            target: "target_active_power",
+            target: "active_power",
             unit: "watts",
             payload: "float",
             display_name_default: null,
@@ -115,41 +118,41 @@ function dtmWithDerDispatch(): DtmType {
 
 describe("buildChannels parameter examples", () => {
   it("surfaces float-measurement names as examples on measurementFloat.measurement", () => {
-    const channels = buildChannels(dtmWithDerDispatch()) as ChannelsShape;
+    const channels = buildChannels(dtmWithExampleDevice()) as ChannelsShape;
     assert.deepEqual(
       channels.measurementFloat!.parameters.measurement!.examples,
-      ["target_active_power"],
+      ["active_power"],
     );
   });
 
   it("surfaces bool-measurement names, alphabetically, as examples on measurementBool.measurement", () => {
-    const channels = buildChannels(dtmWithDerDispatch()) as ChannelsShape;
+    const channels = buildChannels(dtmWithExampleDevice()) as ChannelsShape;
     assert.deepEqual(
       channels.measurementBool!.parameters.measurement!.examples,
-      ["energize_enabled", "event_active"],
+      ["breaker_closed", "interlock_engaged"],
     );
   });
 
   it("surfaces bound command targets as examples on commandFloat.target", () => {
-    const channels = buildChannels(dtmWithDerDispatch()) as ChannelsShape;
+    const channels = buildChannels(dtmWithExampleDevice()) as ChannelsShape;
     assert.deepEqual(channels.commandFloat!.parameters.target!.examples, [
-      "target_active_power",
+      "active_power",
     ]);
   });
 
   it("surfaces device ids as examples on device_id across every channel family", () => {
-    const channels = buildChannels(dtmWithDerDispatch()) as ChannelsShape;
+    const channels = buildChannels(dtmWithExampleDevice()) as ChannelsShape;
     assert.deepEqual(
       channels.measurementFloat!.parameters.device_id!.examples,
-      ["der_dispatch_1"],
+      ["example_device_1"],
     );
     assert.deepEqual(channels.commandFloat!.parameters.device_id!.examples, [
-      "der_dispatch_1",
+      "example_device_1",
     ]);
   });
 
   it("omits examples when no measurement of that type exists in the deployment", () => {
-    const channels = buildChannels(dtmWithDerDispatch()) as ChannelsShape;
+    const channels = buildChannels(dtmWithExampleDevice()) as ChannelsShape;
     assert.equal(
       channels.measurementEnum!.parameters.measurement!.examples,
       undefined,
@@ -162,22 +165,22 @@ describe("buildChannels parameter examples", () => {
       string,
       { messages: Record<string, { $ref: string }> }
     >;
-    const channels = buildChannels(dtmWithDerDispatch()) as unknown as Messages;
+    const channels = buildChannels(dtmWithExampleDevice()) as unknown as Messages;
     assert.deepEqual(Object.keys(channels.measurementFloat!.messages).sort(), [
-      "DerDispatch_TargetActivePower",
+      "ExampleDevice_ActivePower",
       "sample",
     ]);
     assert.equal(
-      channels.measurementFloat!.messages.DerDispatch_TargetActivePower!.$ref,
-      "#/components/messages/DerDispatch_TargetActivePowerMsg",
+      channels.measurementFloat!.messages.ExampleDevice_ActivePower!.$ref,
+      "#/components/messages/ExampleDevice_ActivePowerMsg",
     );
     assert.deepEqual(Object.keys(channels.measurementBool!.messages).sort(), [
-      "DerDispatch_EnergizeEnabled",
-      "DerDispatch_EventActive",
+      "ExampleDevice_BreakerClosed",
+      "ExampleDevice_InterlockEngaged",
       "sample",
     ]);
     assert.deepEqual(Object.keys(channels.commandFloat!.messages).sort(), [
-      "DerDispatch_TestSetpoint",
+      "ExampleDevice_SetActivePower",
       "sample",
     ]);
     assert.deepEqual(Object.keys(channels.measurementEnum!.messages), [
@@ -186,7 +189,7 @@ describe("buildChannels parameter examples", () => {
   });
 
   it("still returns exactly the 8 template-agnostic channels regardless of DTM content", () => {
-    const channels = buildChannels(dtmWithDerDispatch());
+    const channels = buildChannels(dtmWithExampleDevice());
     assert.deepEqual(Object.keys(channels).sort(), [
       "commandBool",
       "commandEnum",
