@@ -4,12 +4,16 @@
  * Per ADR-002 §6: four base sample shapes (FloatSample/BooleanSample/
  * EnumSample/TriggerSample) plus one concrete schema per template
  * measurement and command, each wrapped as a `<Name>Msg` message. Plus the
- * topology-change event and a published JSON Schema for the x-protocol-source
- * extension shape so the gateway and HMI can't drift.
+ * topology-change event and the published JSON Schemas for the
+ * x-protocol-source / x-command-source extension shapes — generated from
+ * the real Binding contract (spec-contract.ts), not hand-written, so they
+ * can't drift from what buildProtocolSourceMap/buildCommandSourceMap
+ * actually produce.
  */
 
 import type { DeviceTemplateType } from "../templates/template.schema";
 import { buildConcreteMessages } from "./spec-messages";
+import { protocolSourceJsonSchema, commandSourceJsonSchema } from "./spec-contract";
 
 const TS_FORMAT = "date-time";
 
@@ -63,34 +67,6 @@ const TOPOLOGY_CHANGED_SCHEMA = {
 };
 
 /**
- * Published JSON Schema for x-protocol-source map entries.
- * Gateway + HMI can validate / codegen against this to stay in sync.
- */
-const PROTOCOL_SOURCE_SCHEMA = {
-  type: "object",
-  required: ["protocol"],
-  properties: {
-    protocol: {
-      type: "string",
-      enum: ["modbus_tcp", "snmp_v3", "redfish", "dnp3", "canbus"],
-    },
-    register_type: {
-      type: "string",
-      enum: ["holding", "input", "coil", "discrete"],
-    },
-    address: { type: "integer" },
-    data_type: {
-      type: "string",
-      enum: ["int16", "uint16", "int32", "uint32", "uint8", "bool", "float32"],
-    },
-    word_order: { type: "string", enum: ["high_low", "low_high"] },
-    scale: { type: "number" },
-    offset: { type: "number" },
-    server_unit_id: { type: "integer" },
-  },
-};
-
-/**
  * Wraps a payload schema as an AsyncAPI message component.
  * @param name Message component identifier (e.g. `FloatSampleMsg`)
  * @param schemaRef Schema name under `components.schemas` (e.g. `FloatSample`)
@@ -130,7 +106,8 @@ export function buildComponents(templates: readonly DeviceTemplateType[]): {
     EnumSample: ENUM_SAMPLE_SCHEMA,
     TriggerSample: TRIGGER_SAMPLE_SCHEMA,
     TopologyChanged: TOPOLOGY_CHANGED_SCHEMA,
-    ProtocolSource: PROTOCOL_SOURCE_SCHEMA,
+    ProtocolSource: protocolSourceJsonSchema(),
+    CommandSource: commandSourceJsonSchema(),
   };
   for (const concrete of buildConcreteMessages(templates)) {
     schemas[concrete.name] = concrete.schema;

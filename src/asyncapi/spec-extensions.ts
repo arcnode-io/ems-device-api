@@ -33,8 +33,8 @@ import {
   resolveSourceMeasurement,
   resolveDistributeChildren,
   resolveEnvelopeGuard,
-  type WeightedPair,
-  type DistributeChild,
+  type WeightedPairType,
+  type DistributeChildType,
 } from "./spec-rollup";
 
 /** Per-device, per-channel protocol source map. */
@@ -136,7 +136,7 @@ type ChannelMeta = {
  * Resolved `source_measurement` mode output — never present on the raw
  * template binding, only on the compiled entry the gateway sees.
  */
-type ResolvedRollupFields = { pairs?: WeightedPair[] };
+type ResolvedRollupFields = { pairs?: WeightedPairType[] };
 
 /** Fully merged map entry: binding ∪ connection ∪ channel meta ∪ resolved rollup fields. */
 type ProtocolSourceEntry = BindingType &
@@ -158,7 +158,7 @@ type CommandIdentity = { verb: string; target: string };
  * binding itself carries the ramp/hysteresis numbers.
  */
 type ResolvedDistributeFields = {
-  children?: DistributeChild[];
+  children?: DistributeChildType[];
   power_min?: number;
   power_max?: number;
   import_limit_topic?: string;

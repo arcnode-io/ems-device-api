@@ -27,6 +27,7 @@ import {
   type CommandSourceMap,
   type EnumValuesMap,
 } from "./spec-extensions";
+import { validateProtocolSourceMap, validateCommandSourceMap } from "./spec-contract";
 
 const SPEC_VERSION = "3.0.0";
 const MQTT_BINDING_VERSION = "0.2.0";
@@ -92,8 +93,11 @@ export function buildSpec(dtm: DtmType, version: string): AsyncApi3Spec {
     channels: buildChannels(dtm),
     operations: buildOperations(),
     components: buildComponents(templates),
-    "x-protocol-source": buildProtocolSourceMap(dtm),
-    "x-command-source": buildCommandSourceMap(dtm),
+    // Self-validated against the real contract (spec-contract.ts) rather
+    // than trusted blindly — catches drift between the resolvers and the
+    // published schema at generation time, not just in tests.
+    "x-protocol-source": validateProtocolSourceMap(buildProtocolSourceMap(dtm)),
+    "x-command-source": validateCommandSourceMap(buildCommandSourceMap(dtm)),
     "x-enum-values": buildEnumValuesMap(templates),
     "x-alarms": buildAlarmsMap(dtm),
   };

@@ -57,6 +57,7 @@ describe("buildComponents concrete schemas", () => {
     const keys = Object.keys(components.schemas).sort();
     assert.deepEqual(keys, [
       "BooleanSample",
+      "CommandSource",
       "EnumSample",
       "FloatSample",
       "GridModule_InterconnectState",
@@ -66,6 +67,16 @@ describe("buildComponents concrete schemas", () => {
       "TopologyChanged",
       "TriggerSample",
     ]);
+  });
+
+  it("generates ProtocolSource/CommandSource from the real Binding contract, not a hand-written literal", () => {
+    const components = buildComponents(templates()) as unknown as Components;
+    const protocolSource = JSON.stringify(components.schemas.ProtocolSource);
+    const commandSource = JSON.stringify(components.schemas.CommandSource);
+    // The old hand-written schema had "dnp3" (wrong) and no synthetic/distribute at all.
+    assert.ok(protocolSource.includes('"dnp3_tcp"'));
+    assert.ok(protocolSource.includes('"synthetic"'));
+    assert.ok(commandSource.includes('"distribute"'));
   });
 
   it("publishes the enum lock on the concrete schema", () => {

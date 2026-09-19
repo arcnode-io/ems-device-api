@@ -6,21 +6,35 @@
  * does any DTM-walking itself — it only ever sees fully-resolved data.
  */
 
+import { z } from "zod";
 import type { DtmType, DeviceType } from "../topology/dtm.schema";
 import type { DeviceTemplateType } from "../templates/template.schema";
 import { MEASUREMENT_ADDRESS } from "./spec-channels";
 
-/** One resolved {topic, weight} pair for a `weighted_mean` aggregation. */
-export type WeightedPair = { topic: string; weight: number };
+/**
+ * One resolved {topic, weight} pair for a `weighted_mean` aggregation. A
+ * real Zod schema (not just a TS type) so spec-contract.ts can compose it
+ * into the published x-protocol-source JSON Schema without a second,
+ * hand-maintained copy of this shape.
+ */
+export const WeightedPair = z.strictObject({
+  topic: z.string(),
+  weight: z.number(),
+});
+export type WeightedPairType = z.infer<typeof WeightedPair>;
 
-/** One resolved child entry for a `distribute` binding's allocation. */
-export type DistributeChild = {
-  device_id: string;
-  operating_state_topic: string;
-  state_of_charge_topic: string;
-  power_min: number;
-  power_max: number;
-};
+/**
+ * One resolved child entry for a `distribute` binding's allocation. A real
+ * Zod schema for the same reason as {@link WeightedPair}.
+ */
+export const DistributeChild = z.strictObject({
+  device_id: z.string(),
+  operating_state_topic: z.string(),
+  state_of_charge_topic: z.string(),
+  power_min: z.number(),
+  power_max: z.number(),
+});
+export type DistributeChildType = z.infer<typeof DistributeChild>;
 
 /** Resolved envelope-guard fields for a `distribute` binding — see resolveEnvelopeGuard. */
 export type EnvelopeGuardResolution = {
@@ -96,7 +110,7 @@ export function resolveSourceMeasurement(
   deviceId: string,
   sourceMeasurement: string,
   operation: string,
-): { inputs: string[] } | { pairs: WeightedPair[] } {
+): { inputs: string[] } | { pairs: WeightedPairType[] } {
   const children = resolveChildren(dtm, deviceId);
 
   if (operation === "weighted_mean") {
@@ -152,7 +166,7 @@ export function resolveDistributeChildren(
   deviceId: string,
   verb: string,
   target: string,
-): DistributeChild[] {
+): DistributeChildType[] {
   const children = resolveChildren(dtm, deviceId);
 
   return children.map((child) => {
@@ -225,7 +239,7 @@ export function resolveEnvelopeGuard(
   dtm: DtmType,
   deviceId: string,
   target: string,
-  children: DistributeChild[],
+  children: DistributeChildType[],
 ): EnvelopeGuardResolution {
   const power_min = children.reduce((sum, child) => sum + child.power_min, 0);
   const power_max = children.reduce((sum, child) => sum + child.power_max, 0);
