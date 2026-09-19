@@ -29,6 +29,12 @@ import type {
   BindingType,
   AlarmType,
 } from "../templates/template.schema";
+import {
+  resolveSourceMeasurement,
+  resolveDistributeChildren,
+  type WeightedPair,
+  type DistributeChild,
+} from "./spec-rollup";
 
 /** Per-device, per-channel protocol source map. */
 export type ProtocolSourceMap = Record<string, Record<string, unknown>>;
@@ -71,7 +77,12 @@ export function buildCommandSourceMap(dtm: DtmType): CommandSourceMap {
   for (const [deviceId, device] of Object.entries(dtm.devices)) {
     const tpl = dtm.templates_used[device.template];
     if (!tpl) continue;
-    const entries = collectCommandBindings(tpl, device.connection ?? null, deviceId);
+    const entries = collectCommandBindings(
+      dtm,
+      tpl,
+      device.connection ?? null,
+      deviceId,
+    );
     if (Object.keys(entries).length > 0) out[deviceId] = entries;
   }
   return out;
@@ -87,6 +98,7 @@ export function buildCommandSourceMap(dtm: DtmType): CommandSourceMap {
 function buildSourceMap(
   dtm: DtmType,
   collect: (
+    dtm: DtmType,
     tpl: DeviceTemplateType,
     connection: ConnectionFields,
     deviceId: string,
@@ -96,7 +108,7 @@ function buildSourceMap(
   for (const [deviceId, device] of Object.entries(dtm.devices)) {
     const tpl = dtm.templates_used[device.template];
     if (!tpl) continue;
-    const entries = collect(tpl, device.connection ?? null, deviceId);
+    const entries = collect(dtm, tpl, device.connection ?? null, deviceId);
     if (Object.keys(entries).length > 0) out[deviceId] = entries;
   }
   return out;
@@ -119,8 +131,17 @@ type ChannelMeta = {
   poll_rate_hz?: number | null;
 };
 
-/** Fully merged map entry: binding ∪ connection ∪ channel meta. */
-type ProtocolSourceEntry = BindingType & ConnectionFields & ChannelMeta;
+/**
+ * Resolved `source_measurement` mode output — never present on the raw
+ * template binding, only on the compiled entry the gateway sees.
+ */
+type ResolvedRollupFields = { pairs?: WeightedPair[] };
+
+/** Fully merged map entry: binding ∪ connection ∪ channel meta ∪ resolved rollup fields. */
+type ProtocolSourceEntry = BindingType &
+  ConnectionFields &
+  ChannelMeta &
+  ResolvedRollupFields;
 
 /**
  * A command's verb + target — the two things an inbound `commands/{verb}/
@@ -129,9 +150,16 @@ type ProtocolSourceEntry = BindingType & ConnectionFields & ChannelMeta;
  */
 type CommandIdentity = { verb: string; target: string };
 
-/** Fully merged command entry: binding ∪ connection ∪ unit ∪ verb/target. */
+/**
+ * Resolved `distribute` binding output — never present on the raw template
+ * binding, only on the compiled entry the gateway sees.
+ */
+type ResolvedDistributeFields = { children?: DistributeChild[] };
+
+/** Fully merged command entry: binding ∪ connection ∪ unit ∪ verb/target ∪ resolved distribute fields. */
 type CommandSourceEntry = BindingType &
-  ConnectionFields & { unit: string } & CommandIdentity;
+  ConnectionFields & { unit: string } & CommandIdentity &
+  ResolvedDistributeFields;
 
 /**
  * Collect all binding-bearing measurements from a template, merging in the
@@ -140,12 +168,16 @@ type CommandSourceEntry = BindingType &
  * one entry. For synthetic bindings, substitute `{device_id}` in the
  * `inputs[]` array with the instantiating `deviceId`. `{site_id}` stays
  * unresolved — gateway substitutes from its deployment config at runtime.
+ * Synthetic bindings in `source_measurement` mode are resolved separately
+ * (see spec-rollup.ts), which is why this needs the whole `dtm`.
+ * @param dtm The self-describing deployment manifest
  * @param tpl Validated DeviceTemplate with measurements
  * @param connection Device-level connection block (host/port/unit_id), or null
  * @param deviceId The instantiating device's id, used for `{device_id}` substitution
  * @returns Map of channel name -> binding + connection + channel meta
  */
 function collectMeasurementBindings(
+  dtm: DtmType,
   tpl: DeviceTemplateType,
   connection: ConnectionFields,
   deviceId: string,
@@ -153,18 +185,33 @@ function collectMeasurementBindings(
   const out: Record<string, ProtocolSourceEntry> = {};
   const conn = connection ?? ({} as ConnectionFields);
   for (const [name, meas] of Object.entries(tpl.measurements)) {
-    if (meas.binding !== null && meas.binding !== undefined) {
-      const resolvedBinding = resolveDeviceIdPlaceholder(
-        meas.binding,
+    if (meas.binding === null || meas.binding === undefined) continue;
+
+    if (meas.binding.protocol === "synthetic" && meas.binding.source_measurement) {
+      const resolved = resolveSourceMeasurement(
+        dtm,
         deviceId,
+        meas.binding.source_measurement,
+        meas.binding.operation,
       );
       out[name] = {
         ...conn,
-        ...resolvedBinding,
+        protocol: "synthetic",
+        operation: meas.binding.operation,
+        ...resolved,
         unit: meas.unit,
         poll_rate_hz: meas.poll_rate_hz,
       } as ProtocolSourceEntry;
+      continue;
     }
+
+    const resolvedBinding = resolveDeviceIdPlaceholder(meas.binding, deviceId);
+    out[name] = {
+      ...conn,
+      ...resolvedBinding,
+      unit: meas.unit,
+      poll_rate_hz: meas.poll_rate_hz,
+    } as ProtocolSourceEntry;
   }
   return out;
 }
@@ -179,13 +226,17 @@ function collectMeasurementBindings(
  * template's own command name as the map key) because that's what an
  * inbound command topic actually addresses — a name like `approve_dispatch`
  * doesn't derive from its `verb: enable, target: event_active` pair, so a
- * consumer resolving a topic needs the real fields, not a guess.
+ * consumer resolving a topic needs the real fields, not a guess. Distribute
+ * bindings are resolved separately (see spec-rollup.ts), which is why this
+ * needs the whole `dtm`.
+ * @param dtm The self-describing deployment manifest
  * @param tpl Validated DeviceTemplate with commands
  * @param connection Device-level connection block (host/port/unit_id), or null
  * @param deviceId The instantiating device's id, used for `{device_id}` substitution
  * @returns Map of channel name -> binding + connection + verb + target
  */
 function collectCommandBindings(
+  dtm: DtmType,
   tpl: DeviceTemplateType,
   connection: ConnectionFields,
   deviceId: string,
@@ -193,16 +244,35 @@ function collectCommandBindings(
   const out: Record<string, CommandSourceEntry> = {};
   const conn = connection ?? ({} as ConnectionFields);
   for (const [name, cmd] of Object.entries(tpl.commands)) {
-    if (cmd.binding !== null && cmd.binding !== undefined) {
-      const resolvedBinding = resolveDeviceIdPlaceholder(cmd.binding, deviceId);
+    if (cmd.binding === null || cmd.binding === undefined) continue;
+
+    if (cmd.binding.protocol === "distribute") {
+      const children = resolveDistributeChildren(
+        dtm,
+        deviceId,
+        cmd.verb,
+        cmd.target,
+      );
       out[name] = {
         ...conn,
-        ...resolvedBinding,
+        protocol: "distribute",
+        allocation_policy: cmd.binding.allocation_policy,
+        children,
         unit: cmd.unit,
         verb: cmd.verb,
         target: cmd.target,
       } as CommandSourceEntry;
+      continue;
     }
+
+    const resolvedBinding = resolveDeviceIdPlaceholder(cmd.binding, deviceId);
+    out[name] = {
+      ...conn,
+      ...resolvedBinding,
+      unit: cmd.unit,
+      verb: cmd.verb,
+      target: cmd.target,
+    } as CommandSourceEntry;
   }
   return out;
 }

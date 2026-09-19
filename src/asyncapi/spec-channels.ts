@@ -27,7 +27,7 @@ import {
 
 const MQTT_BINDING_VERSION = "0.2.0";
 
-const MEASUREMENT_ADDRESS =
+export const MEASUREMENT_ADDRESS =
   "sites/{site_id}/devices/{device_id}/measurements/{measurement}/{unit}";
 const COMMAND_ADDRESS =
   "sites/{site_id}/devices/{device_id}/commands/{verb}/{target}/{unit}";
