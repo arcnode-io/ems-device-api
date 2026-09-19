@@ -13,6 +13,7 @@ import {
   resolveChildren,
   resolveSourceMeasurement,
   resolveDistributeChildren,
+  resolveEnvelopeGuard,
 } from "./spec-rollup";
 import type { DtmType } from "../topology/dtm.schema";
 
@@ -326,6 +327,89 @@ describe("resolveDistributeChildren", () => {
     assert.throws(
       () => resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power"),
       /bounds/,
+    );
+  });
+});
+
+/**
+ * Adds an `operating_envelope` singleton device + template (import_limit/
+ * export_limit, matching the real edp-api convention) and a real
+ * `active_power` measurement on bess_module's own template (needed for
+ * `active_power_topic`) to an existing rack-children fixture, in place.
+ * @param dtm A DTM built by dtmWithRackChildren(), mutated in place
+ */
+function addEnvelopeGuardFixtures(dtm: DtmType): void {
+  dtm.devices.operating_envelope = {
+    device_id: "operating_envelope",
+    template: "operating_envelope",
+    blocking: [],
+    parent: null,
+    display_name: null,
+    connection: null,
+  };
+  dtm.templates_used.operating_envelope = {
+    template: "operating_envelope",
+    kind: "leaf",
+    equipment_id: "EXT-DOE-001",
+    vendor: "Test",
+    model: "Test DOE",
+    capacity_kwh: null,
+    description: "envelope fixture",
+    contains: [],
+    commands: {},
+    measurements: {
+      import_limit: { unit: "watts", type: "float", publisher: "gateway" },
+      export_limit: { unit: "watts", type: "float", publisher: "gateway" },
+    },
+    alarms: [],
+  } as unknown as DtmType["templates_used"][string];
+  dtm.templates_used.bess_module!.measurements = {
+    active_power: { unit: "watts", type: "float", publisher: "local_process" },
+  } as unknown as DtmType["templates_used"][string]["measurements"];
+}
+
+describe("resolveEnvelopeGuard", () => {
+  it("sums each child's power_min/power_max and resolves the envelope/active_power topics", () => {
+    const dtm = dtmWithRackChildren();
+    addEnvelopeGuardFixtures(dtm);
+    const children = resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power");
+
+    const result = resolveEnvelopeGuard(dtm, "bess_module_1", "active_power", children);
+
+    assert.deepEqual(result, {
+      power_min: -8000000,
+      power_max: 8000000,
+      import_limit_topic:
+        "sites/{site_id}/devices/operating_envelope/measurements/import_limit/watts",
+      export_limit_topic:
+        "sites/{site_id}/devices/operating_envelope/measurements/export_limit/watts",
+      active_power_topic:
+        "sites/{site_id}/devices/bess_module_1/measurements/active_power/watts",
+    });
+  });
+
+  it("throws when there's no operating_envelope device in this deployment", () => {
+    const dtm = dtmWithRackChildren();
+    dtm.templates_used.bess_module!.measurements = {
+      active_power: { unit: "watts", type: "float", publisher: "local_process" },
+    } as unknown as DtmType["templates_used"][string]["measurements"];
+    const children = resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power");
+
+    assert.throws(
+      () => resolveEnvelopeGuard(dtm, "bess_module_1", "active_power", children),
+      /operating_envelope/,
+    );
+  });
+
+  it("throws when the module lacks its own target measurement", () => {
+    const dtm = dtmWithRackChildren();
+    addEnvelopeGuardFixtures(dtm);
+    dtm.templates_used.bess_module!.measurements = {} as unknown as DtmType["templates_used"][string]["measurements"];
+    const children = resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power");
+
+    assert.throws(
+      () => resolveEnvelopeGuard(dtm, "bess_module_1", "active_power", children),
+      /active_power/,
     );
   });
 });

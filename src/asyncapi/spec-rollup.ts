@@ -22,6 +22,18 @@ export type DistributeChild = {
   power_max: number;
 };
 
+/** Resolved envelope-guard fields for a `distribute` binding — see resolveEnvelopeGuard. */
+export type EnvelopeGuardResolution = {
+  power_min: number;
+  power_max: number;
+  import_limit_topic: string;
+  export_limit_topic: string;
+  active_power_topic: string;
+};
+
+/** Well-known singleton DOE device id — same convention already hardcoded in bess_module's own import_headroom/export_headroom inputs[]. */
+const OPERATING_ENVELOPE_DEVICE_ID = "operating_envelope";
+
 /**
  * Find every device whose `parent` is `deviceId`, sorted by device_id for
  * deterministic output order.
@@ -192,4 +204,73 @@ export function resolveDistributeChildren(
       power_max: targetMeas.bounds.max,
     };
   });
+}
+
+/**
+ * Resolve a `distribute` binding's envelope-guard fields: the module-level
+ * clamp range (summed from each already-resolved child's own power_min/
+ * power_max — bess_module has no static rated-power fact of its own, since
+ * its rack count is `qty: "scalable"` and varies per deployment, same
+ * reason `capacity_kwh` lives on the leaf, not the module) plus the
+ * concrete topics for the site's `operating_envelope` limits and this
+ * device's own live reading (the control law ramps from the current value).
+ * @param dtm The self-describing deployment manifest
+ * @param deviceId The device this distribute binding lives on (the parent)
+ * @param target The command's target — this device's own measurement of
+ *     the same name (e.g. `active_power`) supplies `active_power_topic`
+ * @param children Already-resolved children from resolveDistributeChildren
+ * @returns Envelope-guard clamp bounds + the three concrete topics
+ */
+export function resolveEnvelopeGuard(
+  dtm: DtmType,
+  deviceId: string,
+  target: string,
+  children: DistributeChild[],
+): EnvelopeGuardResolution {
+  const power_min = children.reduce((sum, child) => sum + child.power_min, 0);
+  const power_max = children.reduce((sum, child) => sum + child.power_max, 0);
+
+  const envelopeDevice = dtm.devices[OPERATING_ENVELOPE_DEVICE_ID];
+  if (!envelopeDevice) {
+    throw new Error(
+      `device ${deviceId}: distribute binding's envelope guard needs a device named "${OPERATING_ENVELOPE_DEVICE_ID}" in this deployment, none found`,
+    );
+  }
+  const envelopeTpl = dtm.templates_used[envelopeDevice.template];
+  if (!envelopeTpl) {
+    throw new Error(
+      `device ${deviceId}: ${OPERATING_ENVELOPE_DEVICE_ID}'s template ${envelopeDevice.template} not in catalog`,
+    );
+  }
+  const importLimit = envelopeTpl.measurements.import_limit;
+  const exportLimit = envelopeTpl.measurements.export_limit;
+  if (!importLimit || !exportLimit) {
+    throw new Error(
+      `device ${deviceId}: distribute binding's envelope guard needs import_limit and export_limit on ${OPERATING_ENVELOPE_DEVICE_ID}'s template, none found`,
+    );
+  }
+
+  const tpl = dtm.templates_used[dtm.devices[deviceId]!.template];
+  const targetMeas = tpl?.measurements[target];
+  if (!targetMeas) {
+    throw new Error(
+      `device ${deviceId}: distribute binding's envelope guard needs its own ${target} measurement, none found`,
+    );
+  }
+
+  return {
+    power_min,
+    power_max,
+    import_limit_topic: buildTopic(
+      OPERATING_ENVELOPE_DEVICE_ID,
+      "import_limit",
+      importLimit.unit,
+    ),
+    export_limit_topic: buildTopic(
+      OPERATING_ENVELOPE_DEVICE_ID,
+      "export_limit",
+      exportLimit.unit,
+    ),
+    active_power_topic: buildTopic(deviceId, target, targetMeas.unit),
+  };
 }

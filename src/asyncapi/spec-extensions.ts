@@ -32,6 +32,7 @@ import type {
 import {
   resolveSourceMeasurement,
   resolveDistributeChildren,
+  resolveEnvelopeGuard,
   type WeightedPair,
   type DistributeChild,
 } from "./spec-rollup";
@@ -152,9 +153,18 @@ type CommandIdentity = { verb: string; target: string };
 
 /**
  * Resolved `distribute` binding output — never present on the raw template
- * binding, only on the compiled entry the gateway sees.
+ * binding, only on the compiled entry the gateway sees. Envelope-guard
+ * fields (power_min/power_max/the three topics) are only present when the
+ * binding itself carries the ramp/hysteresis numbers.
  */
-type ResolvedDistributeFields = { children?: DistributeChild[] };
+type ResolvedDistributeFields = {
+  children?: DistributeChild[];
+  power_min?: number;
+  power_max?: number;
+  import_limit_topic?: string;
+  export_limit_topic?: string;
+  active_power_topic?: string;
+};
 
 /** Fully merged command entry: binding ∪ connection ∪ unit ∪ verb/target ∪ resolved distribute fields. */
 type CommandSourceEntry = BindingType &
@@ -253,11 +263,19 @@ function collectCommandBindings(
         cmd.verb,
         cmd.target,
       );
+      const envelopeGuard =
+        cmd.binding.ramp_rate_per_sec !== undefined
+          ? resolveEnvelopeGuard(dtm, deviceId, cmd.target, children)
+          : {};
       out[name] = {
         ...conn,
         protocol: "distribute",
         allocation_policy: cmd.binding.allocation_policy,
+        ramp_rate_per_sec: cmd.binding.ramp_rate_per_sec,
+        hysteresis_margin: cmd.binding.hysteresis_margin,
+        hysteresis_dwell_secs: cmd.binding.hysteresis_dwell_secs,
         children,
+        ...envelopeGuard,
         unit: cmd.unit,
         verb: cmd.verb,
         target: cmd.target,

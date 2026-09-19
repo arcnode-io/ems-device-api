@@ -39,6 +39,41 @@ describe("DistributeBinding", () => {
     if (result.protocol !== "distribute") throw new Error("expected distribute");
     assert.equal(result.allocation_policy, "soc_weighted");
   });
+
+  it("accepts envelope-guard fields when all three are present", () => {
+    const result = Binding.parse({
+      protocol: "distribute",
+      allocation_policy: "soc_weighted",
+      ramp_rate_per_sec: 0.1,
+      hysteresis_margin: 0.05,
+      hysteresis_dwell_secs: 30.0,
+    });
+    if (result.protocol !== "distribute") throw new Error("expected distribute");
+    assert.equal(result.ramp_rate_per_sec, 0.1);
+    assert.equal(result.hysteresis_margin, 0.05);
+    assert.equal(result.hysteresis_dwell_secs, 30.0);
+  });
+
+  it("stays valid without envelope-guard fields (plain distribute, unaffected)", () => {
+    const result = Binding.parse({
+      protocol: "distribute",
+      allocation_policy: "equal_split",
+    });
+    if (result.protocol !== "distribute") throw new Error("expected distribute");
+    assert.equal(result.ramp_rate_per_sec, undefined);
+    assert.equal(result.hysteresis_margin, undefined);
+    assert.equal(result.hysteresis_dwell_secs, undefined);
+  });
+
+  it("rejects partial envelope-guard fields (all-or-nothing, not two-of-three)", () => {
+    const msg = fail({
+      protocol: "distribute",
+      allocation_policy: "equal_split",
+      ramp_rate_per_sec: 0.1,
+      hysteresis_margin: 0.05,
+    });
+    assert.ok(msg.includes("all three or none"), `got: ${msg}`);
+  });
 });
 
 describe("SyntheticBinding source_measurement mode", () => {

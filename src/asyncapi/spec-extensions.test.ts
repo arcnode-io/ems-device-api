@@ -571,6 +571,86 @@ describe("buildProtocolSourceMap / buildCommandSourceMap — bess_system rollup 
   });
 });
 
+describe("buildCommandSourceMap — envelope-guarded distribute end to end", () => {
+  /**
+   * dtmWithRollupBindings() plus an operating_envelope singleton device and
+   * ramp/hysteresis fields on the distribute binding — isolated from the
+   * plain-distribute e2e test above so that one stays a real assertion of
+   * the un-guarded shape.
+   * @returns The rollup fixture, mutated to exercise envelope-guard resolution
+   */
+  function dtmWithEnvelopeGuard(): DtmType {
+    const dtm = dtmWithRollupBindings();
+    dtm.devices.operating_envelope = {
+      device_id: "operating_envelope",
+      template: "operating_envelope",
+      blocking: [],
+      parent: null,
+      display_name: null,
+      connection: null,
+    };
+    dtm.templates_used.operating_envelope = {
+      template: "operating_envelope",
+      kind: "leaf",
+      equipment_id: "EXT-DOE-001",
+      vendor: "Test",
+      model: "Test DOE",
+      capacity_kwh: null,
+      description: "envelope fixture",
+      contains: [],
+      commands: {},
+      measurements: {
+        import_limit: { unit: "watts", type: "float", publisher: "gateway" },
+        export_limit: { unit: "watts", type: "float", publisher: "gateway" },
+      },
+      alarms: [],
+    } as unknown as DtmType["templates_used"][string];
+    dtm.templates_used.bess_module!.commands.set_active_power!.binding = {
+      protocol: "distribute",
+      allocation_policy: "equal_split",
+      ramp_rate_per_sec: 0.1,
+      hysteresis_margin: 0.05,
+      hysteresis_dwell_secs: 30.0,
+    } as unknown as DtmType["templates_used"][string]["commands"][string]["binding"];
+    return dtm;
+  }
+
+  it("resolves envelope-guard bounds + topics alongside children[]", () => {
+    const map = buildCommandSourceMap(dtmWithEnvelopeGuard());
+    const entry = map.bess_module_1?.set_active_power as
+      | {
+          ramp_rate_per_sec: number;
+          hysteresis_margin: number;
+          hysteresis_dwell_secs: number;
+          power_min: number;
+          power_max: number;
+          import_limit_topic: string;
+          export_limit_topic: string;
+          active_power_topic: string;
+        }
+      | undefined;
+
+    assert.ok(entry, "expected set_active_power in x-command-source");
+    assert.equal(entry.ramp_rate_per_sec, 0.1);
+    assert.equal(entry.hysteresis_margin, 0.05);
+    assert.equal(entry.hysteresis_dwell_secs, 30.0);
+    assert.equal(entry.power_min, -8000000);
+    assert.equal(entry.power_max, 8000000);
+    assert.equal(
+      entry.import_limit_topic,
+      "sites/{site_id}/devices/operating_envelope/measurements/import_limit/watts",
+    );
+    assert.equal(
+      entry.export_limit_topic,
+      "sites/{site_id}/devices/operating_envelope/measurements/export_limit/watts",
+    );
+    assert.equal(
+      entry.active_power_topic,
+      "sites/{site_id}/devices/bess_module_1/measurements/active_power/watts",
+    );
+  });
+});
+
 describe("buildAlarmsMap", () => {
   it("projects per-device alarm catalogs keyed by device_id", () => {
     const dtm = dtmWithAlarms();

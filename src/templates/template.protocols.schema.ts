@@ -125,10 +125,35 @@ const SyntheticBinding = z
 // are inherited from whichever Command this binding lives on, resolved
 // per-child by ems-device-api matching verb+target against each child's own
 // commands (not modeled here).
-const DistributeBinding = z.strictObject({
-  protocol: z.literal("distribute"),
-  allocation_policy: z.enum(["equal_split", "soc_weighted"]),
-});
+//
+// The three envelope-guard fields are optional and all-or-nothing: a plain
+// distribute binding (module setpoint fanout, no envelope guard) omits all
+// three. When present, they carry the tunable control-law numbers for
+// envelope-constrained actuation (ramp rate, hysteresis) — the concrete
+// values live in ems-industrial-gateway's cfg.yml, not hardcoded; this
+// schema just accepts the shape.
+const DistributeBinding = z
+  .strictObject({
+    protocol: z.literal("distribute"),
+    allocation_policy: z.enum(["equal_split", "soc_weighted"]),
+    ramp_rate_per_sec: z.number().optional(),
+    hysteresis_margin: z.number().optional(),
+    hysteresis_dwell_secs: z.number().optional(),
+  })
+  .refine(
+    (binding) => {
+      const present = [
+        binding.ramp_rate_per_sec,
+        binding.hysteresis_margin,
+        binding.hysteresis_dwell_secs,
+      ].filter((field) => field !== undefined).length;
+      return present === 0 || present === 3;
+    },
+    {
+      message:
+        "distribute binding's envelope-guard fields (ramp_rate_per_sec, hysteresis_margin, hysteresis_dwell_secs) require all three or none",
+    },
+  );
 
 export const Binding = z.discriminatedUnion("protocol", [
   ModbusBinding,
