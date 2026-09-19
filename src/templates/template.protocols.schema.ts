@@ -77,18 +77,57 @@ const BacnetScBinding = z.strictObject({
 });
 
 // Gateway-side pure-function derivation from cached MQTT inputs.
-// Synthetic channels do NOT poll a south-side device. The gateway subscribes
-// to the topics listed in `inputs`, caches latest values per topic, ticks at
-// the measurement's poll_rate_hz, applies `operation` over cached values, and
-// publishes the result. Holds (no publish) until every input is cached.
+// Synthetic channels do NOT poll a south-side device. Exactly one of two
+// input-source modes applies:
 //
-// Input topics may contain `{site_id}` (gateway runtime substitution from
-// deployment config) and `{device_id}` (substituted at AsyncAPI generation
-// time with the instantiating device's id).
-const SyntheticBinding = z.strictObject({
-  protocol: z.literal("synthetic"),
-  operation: z.enum(["subtract", "sum", "mean", "max", "min"]),
-  inputs: z.array(z.string()),
+// - `inputs`: a fixed list of topics. The gateway subscribes to each, caches
+//   latest values, ticks at the measurement's poll_rate_hz, and publishes the
+//   result of applying `operation`. Holds (no publish) until every input has
+//   at least one cached sample. Topic strings may contain `{site_id}`
+//   (gateway runtime) and `{device_id}` (ems-device-api AsyncAPI-gen
+//   substitution).
+// - `source_measurement`: names a measurement projected across every child
+//   of the device this binding lives on. Resolving children into concrete
+//   topics is ems-device-api's job (spec-extensions.ts), not modeled here.
+//
+// `weighted_mean` (capacity_kwh-weighted, per DeviceTemplate.capacity_kwh on
+// each child) is only meaningful across children, so it requires
+// `source_measurement` mode. `subtract` is only ever between two fixed
+// topics (e.g. envelope limit minus module draw), so it requires `inputs`
+// mode. `sum`/`mean`/`max`/`min` work in either mode.
+const SyntheticBinding = z
+  .strictObject({
+    protocol: z.literal("synthetic"),
+    operation: z.enum(["subtract", "sum", "mean", "max", "min", "weighted_mean"]),
+    inputs: z.array(z.string()).optional(),
+    source_measurement: z.string().optional(),
+  })
+  .refine(
+    (binding) => Boolean(binding.inputs) !== Boolean(binding.source_measurement),
+    {
+      message:
+        "synthetic binding requires exactly one of `inputs` (fixed topic list) or `source_measurement` (projected across children)",
+    },
+  )
+  .refine(
+    (binding) =>
+      !(binding.operation === "weighted_mean" && !binding.source_measurement),
+    {
+      message: "operation=weighted_mean requires source_measurement mode",
+    },
+  )
+  .refine((binding) => !(binding.operation === "subtract" && !binding.inputs), {
+    message: "operation=subtract requires inputs mode",
+  });
+
+// Command-distribution binding — fans a module-level setpoint out to
+// children per `allocation_policy`. No target-measurement field: verb+target
+// are inherited from whichever Command this binding lives on, resolved
+// per-child by ems-device-api matching verb+target against each child's own
+// commands (not modeled here).
+const DistributeBinding = z.strictObject({
+  protocol: z.literal("distribute"),
+  allocation_policy: z.enum(["equal_split", "soc_weighted"]),
 });
 
 export const Binding = z.discriminatedUnion("protocol", [
@@ -99,6 +138,7 @@ export const Binding = z.discriminatedUnion("protocol", [
   BacnetIpBinding,
   BacnetScBinding,
   SyntheticBinding,
+  DistributeBinding,
 ]);
 
 export type BindingType = z.infer<typeof Binding>;

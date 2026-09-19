@@ -220,6 +220,9 @@ export const DeviceTemplate = z
     equipment_id: z.string().nullable().default(null),
     vendor: z.string().nullable().default(null),
     model: z.string().nullable().default(null),
+    // Nameplate fact (e.g. bess_rack's 4 MWh), not a live measurement — lets
+    // a rollup be capacity-weighted instead of a flat mean.
+    capacity_kwh: z.number().nullable().default(null),
     description: z.string(),
     contains: z.array(ContainsEntry).default([]),
     measurements: z.record(z.string(), Measurement).default({}),

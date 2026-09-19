@@ -209,7 +209,9 @@ function collectCommandBindings(
 
 /**
  * Substitute the `{device_id}` placeholder in synthetic binding `inputs[]`
- * with the instantiating device's id. Non-synthetic bindings pass through
+ * with the instantiating device's id. Non-synthetic bindings, and synthetic
+ * bindings in `source_measurement` mode (no static `inputs[]` to substitute
+ * into — that resolution is separate, children-walking logic), pass through
  * unchanged. `{site_id}` stays unresolved for gateway runtime substitution.
  * @param binding Binding from a measurement or command
  * @param deviceId The instantiating device's id
@@ -219,7 +221,7 @@ function resolveDeviceIdPlaceholder(
   binding: BindingType,
   deviceId: string,
 ): BindingType {
-  if (binding.protocol !== "synthetic") return binding;
+  if (binding.protocol !== "synthetic" || !binding.inputs) return binding;
   return {
     ...binding,
     inputs: binding.inputs.map((topic) =>

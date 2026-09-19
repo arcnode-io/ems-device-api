@@ -150,6 +150,7 @@ describe("Binding", () => {
     assert.equal(result.protocol, "synthetic");
     if (result.protocol !== "synthetic") throw new Error("expected synthetic");
     assert.equal(result.operation, "subtract");
+    if (!result.inputs) throw new Error("expected inputs mode");
     assert.equal(result.inputs.length, 2);
   });
 
@@ -787,6 +788,17 @@ describe("DeviceTemplate", () => {
       contains: [{ template: "child" }],
     });
     assert.ok(msg.includes("contains forbidden for kind=leaf"), `got: ${msg}`);
+  });
+
+  it("capacity_kwh defaults to null", () => {
+    const result = ok(DeviceTemplate, minimalLeaf);
+    assert.equal(result.capacity_kwh, null);
+  });
+
+  it("capacity_kwh accepts a nameplate value", () => {
+    // bess_rack's 4 MWh nameplate, as capacity_kwh
+    const result = ok(DeviceTemplate, { ...minimalLeaf, capacity_kwh: 4000.0 });
+    assert.equal(result.capacity_kwh, 4000.0);
   });
 
   it("module with equipment_id is rejected", () => {
