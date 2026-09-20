@@ -165,7 +165,9 @@ describe("buildChannels parameter examples", () => {
       string,
       { messages: Record<string, { $ref: string }> }
     >;
-    const channels = buildChannels(dtmWithExampleDevice()) as unknown as Messages;
+    const channels = buildChannels(
+      dtmWithExampleDevice(),
+    ) as unknown as Messages;
     assert.deepEqual(Object.keys(channels.measurementFloat!.messages).sort(), [
       "ExampleDevice_ActivePower",
       "sample",

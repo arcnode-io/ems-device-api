@@ -58,7 +58,9 @@ const OPERATING_ENVELOPE_DEVICE_ID = "operating_envelope";
 export function resolveChildren(dtm: DtmType, deviceId: string): DeviceType[] {
   return Object.values(dtm.devices)
     .filter((device) => device.parent === deviceId)
-    .sort((deviceA, deviceB) => deviceA.device_id.localeCompare(deviceB.device_id));
+    .sort((deviceA, deviceB) =>
+      deviceA.device_id.localeCompare(deviceB.device_id),
+    );
 }
 
 /**
@@ -87,7 +89,11 @@ function childTemplate(dtm: DtmType, child: DeviceType): DeviceTemplateType {
  * @param unit The measurement's operator-readable unit
  * @returns The concrete MQTT topic
  */
-function buildTopic(deviceId: string, measurement: string, unit: string): string {
+function buildTopic(
+  deviceId: string,
+  measurement: string,
+  unit: string,
+): string {
   return MEASUREMENT_ADDRESS.replace("{device_id}", deviceId)
     .replace("{measurement}", measurement)
     .replace("{unit}", unit);

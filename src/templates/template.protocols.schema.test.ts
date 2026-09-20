@@ -27,7 +27,8 @@ describe("DistributeBinding", () => {
       protocol: "distribute",
       allocation_policy: "equal_split",
     });
-    if (result.protocol !== "distribute") throw new Error("expected distribute");
+    if (result.protocol !== "distribute")
+      throw new Error("expected distribute");
     assert.equal(result.allocation_policy, "equal_split");
   });
 
@@ -36,7 +37,8 @@ describe("DistributeBinding", () => {
       protocol: "distribute",
       allocation_policy: "soc_weighted",
     });
-    if (result.protocol !== "distribute") throw new Error("expected distribute");
+    if (result.protocol !== "distribute")
+      throw new Error("expected distribute");
     assert.equal(result.allocation_policy, "soc_weighted");
   });
 
@@ -48,7 +50,8 @@ describe("DistributeBinding", () => {
       hysteresis_margin: 0.05,
       hysteresis_dwell_secs: 30.0,
     });
-    if (result.protocol !== "distribute") throw new Error("expected distribute");
+    if (result.protocol !== "distribute")
+      throw new Error("expected distribute");
     assert.equal(result.ramp_rate_per_sec, 0.1);
     assert.equal(result.hysteresis_margin, 0.05);
     assert.equal(result.hysteresis_dwell_secs, 30.0);
@@ -59,7 +62,8 @@ describe("DistributeBinding", () => {
       protocol: "distribute",
       allocation_policy: "equal_split",
     });
-    if (result.protocol !== "distribute") throw new Error("expected distribute");
+    if (result.protocol !== "distribute")
+      throw new Error("expected distribute");
     assert.equal(result.ramp_rate_per_sec, undefined);
     assert.equal(result.hysteresis_margin, undefined);
     assert.equal(result.hysteresis_dwell_secs, undefined);

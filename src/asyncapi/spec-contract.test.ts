@@ -34,7 +34,13 @@ describe("ProtocolSourceEntry", () => {
     const result = ProtocolSourceEntry.safeParse({
       protocol: "synthetic",
       operation: "weighted_mean",
-      pairs: [{ topic: "sites/{site_id}/devices/bess_rack_1/measurements/state_of_charge/percent", weight: 4000 }],
+      pairs: [
+        {
+          topic:
+            "sites/{site_id}/devices/bess_rack_1/measurements/state_of_charge/percent",
+          weight: 4000,
+        },
+      ],
       unit: "percent",
       poll_rate_hz: 1,
     });
@@ -67,7 +73,9 @@ describe("ProtocolSourceEntry", () => {
     const result = ProtocolSourceEntry.safeParse({
       protocol: "synthetic",
       operation: "weighted_mean",
-      inputs: ["sites/{site_id}/devices/bess_rack_1/measurements/state_of_charge/percent"],
+      inputs: [
+        "sites/{site_id}/devices/bess_rack_1/measurements/state_of_charge/percent",
+      ],
       unit: "percent",
       poll_rate_hz: 1,
     });
@@ -86,17 +94,22 @@ describe("CommandSourceEntry", () => {
       children: [
         {
           device_id: "bess_rack_1",
-          operating_state_topic: "sites/{site_id}/devices/bess_rack_1/measurements/operating_state/none",
-          state_of_charge_topic: "sites/{site_id}/devices/bess_rack_1/measurements/state_of_charge/percent",
+          operating_state_topic:
+            "sites/{site_id}/devices/bess_rack_1/measurements/operating_state/none",
+          state_of_charge_topic:
+            "sites/{site_id}/devices/bess_rack_1/measurements/state_of_charge/percent",
           power_min: -4000000,
           power_max: 4000000,
         },
       ],
       power_min: -4000000,
       power_max: 4000000,
-      import_limit_topic: "sites/{site_id}/devices/operating_envelope/measurements/import_limit/watts",
-      export_limit_topic: "sites/{site_id}/devices/operating_envelope/measurements/export_limit/watts",
-      active_power_topic: "sites/{site_id}/devices/bess_module_1/measurements/active_power/watts",
+      import_limit_topic:
+        "sites/{site_id}/devices/operating_envelope/measurements/import_limit/watts",
+      export_limit_topic:
+        "sites/{site_id}/devices/operating_envelope/measurements/export_limit/watts",
+      active_power_topic:
+        "sites/{site_id}/devices/bess_module_1/measurements/active_power/watts",
       unit: "watts",
       verb: "set",
       target: "active_power",
@@ -159,9 +172,15 @@ describe("protocolSourceJsonSchema / commandSourceJsonSchema", () => {
       "bacnet_sc",
       "synthetic",
     ]) {
-      assert.ok(dumped.includes(`"${protocol}"`), `expected ${protocol} in schema`);
+      assert.ok(
+        dumped.includes(`"${protocol}"`),
+        `expected ${protocol} in schema`,
+      );
     }
-    assert.ok(!dumped.includes('"dnp3"'), "stale 'dnp3' spelling should be gone");
+    assert.ok(
+      !dumped.includes('"dnp3"'),
+      "stale 'dnp3' spelling should be gone",
+    );
   });
 
   it("command-source schema includes distribute", () => {
@@ -192,7 +211,10 @@ describe("validateProtocolSourceMap / validateCommandSourceMap", () => {
         active_power: { protocol: "not_a_real_protocol", unit: "watts" },
       },
     };
-    assert.throws(() => validateProtocolSourceMap(map), /bess_rack_1.*active_power/);
+    assert.throws(
+      () => validateProtocolSourceMap(map),
+      /bess_rack_1.*active_power/,
+    );
   });
 
   it("validates a well-formed command-source map", () => {

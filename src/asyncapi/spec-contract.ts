@@ -79,10 +79,13 @@ type AnyBindingVariant = (typeof Binding.options)[number];
  * @param extra Additional fields to merge onto it
  * @returns The extended object schema
  */
-function safeExtend(variant: AnyBindingVariant, extra: z.ZodRawShape): z.ZodObject {
-  return (variant as unknown as { safeExtend: (s: z.ZodRawShape) => z.ZodObject }).safeExtend(
-    extra,
-  );
+function safeExtend(
+  variant: AnyBindingVariant,
+  extra: z.ZodRawShape,
+): z.ZodObject {
+  return (
+    variant as unknown as { safeExtend: (s: z.ZodRawShape) => z.ZodObject }
+  ).safeExtend(extra);
 }
 
 /**
@@ -97,7 +100,9 @@ function safeExtend(variant: AnyBindingVariant, extra: z.ZodRawShape): z.ZodObje
  * @param syntheticVariant The raw `synthetic` Binding variant
  * @returns A refined schema matching the *resolved* entry shape only
  */
-function buildResolvedSynthetic(syntheticVariant: AnyBindingVariant): z.ZodObject {
+function buildResolvedSynthetic(
+  syntheticVariant: AnyBindingVariant,
+): z.ZodObject {
   const resolvedShape = z
     .strictObject(syntheticVariant.shape as z.ZodRawShape)
     .omit({ source_measurement: true });
@@ -107,14 +112,20 @@ function buildResolvedSynthetic(syntheticVariant: AnyBindingVariant): z.ZodObjec
     ...SyntheticResolvedFields,
   })
     .refine((entry) => Boolean(entry.inputs) !== Boolean(entry.pairs), {
-      message: "resolved synthetic entry requires exactly one of inputs or pairs",
+      message:
+        "resolved synthetic entry requires exactly one of inputs or pairs",
     })
     .refine((entry) => !(entry.operation === "weighted_mean" && !entry.pairs), {
-      message: "resolved synthetic entry: operation=weighted_mean requires pairs",
+      message:
+        "resolved synthetic entry: operation=weighted_mean requires pairs",
     })
-    .refine((entry) => !(entry.operation !== "weighted_mean" && !entry.inputs), {
-      message: "resolved synthetic entry: sum/mean/max/min/subtract require inputs",
-    });
+    .refine(
+      (entry) => !(entry.operation !== "weighted_mean" && !entry.inputs),
+      {
+        message:
+          "resolved synthetic entry: sum/mean/max/min/subtract require inputs",
+      },
+    );
 }
 
 /**
@@ -127,7 +138,9 @@ function buildResolvedSynthetic(syntheticVariant: AnyBindingVariant): z.ZodObjec
  * @param distributeVariant The raw `distribute` Binding variant
  * @returns A refined schema matching the *resolved* entry shape
  */
-function buildResolvedDistribute(distributeVariant: AnyBindingVariant): z.ZodObject {
+function buildResolvedDistribute(
+  distributeVariant: AnyBindingVariant,
+): z.ZodObject {
   return safeExtend(distributeVariant, {
     ...ConnectionFields,
     ...CommandUnitAndIdentity,
@@ -141,7 +154,9 @@ function buildResolvedDistribute(distributeVariant: AnyBindingVariant): z.ZodObj
         entry.export_limit_topic,
         entry.active_power_topic,
       ];
-      const present = envelopeGuardFields.filter((field) => field !== undefined).length;
+      const present = envelopeGuardFields.filter(
+        (field) => field !== undefined,
+      ).length;
       const expected = entry.ramp_rate_per_sec !== undefined ? 5 : 0;
       return present === expected;
     },
@@ -205,9 +220,9 @@ export function commandSourceJsonSchema(): object {
  * @param map The map buildProtocolSourceMap just built
  * @returns The same map, unchanged, once every entry is confirmed valid
  */
-export function validateProtocolSourceMap<T extends Record<string, Record<string, unknown>>>(
-  map: T,
-): T {
+export function validateProtocolSourceMap<
+  T extends Record<string, Record<string, unknown>>,
+>(map: T): T {
   for (const [deviceId, channels] of Object.entries(map)) {
     for (const [channel, entry] of Object.entries(channels)) {
       const result = ProtocolSourceEntry.safeParse(entry);
@@ -226,9 +241,9 @@ export function validateProtocolSourceMap<T extends Record<string, Record<string
  * @param map The map buildCommandSourceMap just built
  * @returns The same map, unchanged, once every entry is confirmed valid
  */
-export function validateCommandSourceMap<T extends Record<string, Record<string, unknown>>>(
-  map: T,
-): T {
+export function validateCommandSourceMap<
+  T extends Record<string, Record<string, unknown>>,
+>(map: T): T {
   for (const [deviceId, channels] of Object.entries(map)) {
     for (const [channel, entry] of Object.entries(channels)) {
       const result = CommandSourceEntry.safeParse(entry);

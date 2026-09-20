@@ -18,7 +18,11 @@ import type { DtmType } from "../topology/dtm.schema";
 function dtm(): DtmType {
   return {
     deployment_uuid: "00000000-0000-0000-0000-00000000gen1",
-    sizing_params: { P_compute_total_kW: 1, E_BESS_total_kWh: 1, T_coolant_setpoint_C: 1 },
+    sizing_params: {
+      P_compute_total_kW: 1,
+      E_BESS_total_kWh: 1,
+      T_coolant_setpoint_C: 1,
+    },
     devices: {
       bess_rack_1: {
         device_id: "bess_rack_1",
@@ -97,7 +101,10 @@ describe("buildSpec self-validation", () => {
       "x-command-source": Record<string, Record<string, { protocol: string }>>;
     };
 
-    assert.equal(spec["x-protocol-source"].bess_rack_1?.active_power?.protocol, "modbus_tcp");
+    assert.equal(
+      spec["x-protocol-source"].bess_rack_1?.active_power?.protocol,
+      "modbus_tcp",
+    );
     assert.equal(
       spec["x-command-source"].bess_rack_1?.set_active_power?.protocol,
       "modbus_tcp",

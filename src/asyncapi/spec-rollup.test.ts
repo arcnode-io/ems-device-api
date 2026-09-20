@@ -241,7 +241,8 @@ describe("resolveSourceMeasurement", () => {
   it("throws when a child's template lacks the named measurement", () => {
     const dtm = dtmWithRackChildren();
     assert.throws(
-      () => resolveSourceMeasurement(dtm, "bess_module_1", "reactive_power", "sum"),
+      () =>
+        resolveSourceMeasurement(dtm, "bess_module_1", "reactive_power", "sum"),
       /reactive_power.*not found/,
     );
   });
@@ -296,27 +297,37 @@ describe("resolveDistributeChildren", () => {
   it("throws when a child lacks a matching verb+target command", () => {
     const dtm = dtmWithRackChildren();
     assert.throws(
-      () => resolveDistributeChildren(dtm, "bess_module_1", "set", "reactive_power"),
+      () =>
+        resolveDistributeChildren(
+          dtm,
+          "bess_module_1",
+          "set",
+          "reactive_power",
+        ),
       /set\/reactive_power/,
     );
   });
 
   it("throws when a child lacks operating_state", () => {
     const dtm = dtmWithRackChildren();
-    delete (dtm.templates_used.bess_rack!.measurements as Record<string, unknown>)
-      .operating_state;
+    delete (
+      dtm.templates_used.bess_rack!.measurements as Record<string, unknown>
+    ).operating_state;
     assert.throws(
-      () => resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power"),
+      () =>
+        resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power"),
       /operating_state/,
     );
   });
 
   it("throws when a child lacks state_of_charge", () => {
     const dtm = dtmWithRackChildren();
-    delete (dtm.templates_used.bess_rack!.measurements as Record<string, unknown>)
-      .state_of_charge;
+    delete (
+      dtm.templates_used.bess_rack!.measurements as Record<string, unknown>
+    ).state_of_charge;
     assert.throws(
-      () => resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power"),
+      () =>
+        resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power"),
       /state_of_charge/,
     );
   });
@@ -325,7 +336,8 @@ describe("resolveDistributeChildren", () => {
     const dtm = dtmWithRackChildren();
     dtm.templates_used.bess_rack!.measurements.active_power!.bounds = null;
     assert.throws(
-      () => resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power"),
+      () =>
+        resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power"),
       /bounds/,
     );
   });
@@ -372,9 +384,19 @@ describe("resolveEnvelopeGuard", () => {
   it("sums each child's power_min/power_max and resolves the envelope/active_power topics", () => {
     const dtm = dtmWithRackChildren();
     addEnvelopeGuardFixtures(dtm);
-    const children = resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power");
+    const children = resolveDistributeChildren(
+      dtm,
+      "bess_module_1",
+      "set",
+      "active_power",
+    );
 
-    const result = resolveEnvelopeGuard(dtm, "bess_module_1", "active_power", children);
+    const result = resolveEnvelopeGuard(
+      dtm,
+      "bess_module_1",
+      "active_power",
+      children,
+    );
 
     assert.deepEqual(result, {
       power_min: -8000000,
@@ -391,12 +413,22 @@ describe("resolveEnvelopeGuard", () => {
   it("throws when there's no operating_envelope device in this deployment", () => {
     const dtm = dtmWithRackChildren();
     dtm.templates_used.bess_module!.measurements = {
-      active_power: { unit: "watts", type: "float", publisher: "local_process" },
+      active_power: {
+        unit: "watts",
+        type: "float",
+        publisher: "local_process",
+      },
     } as unknown as DtmType["templates_used"][string]["measurements"];
-    const children = resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power");
+    const children = resolveDistributeChildren(
+      dtm,
+      "bess_module_1",
+      "set",
+      "active_power",
+    );
 
     assert.throws(
-      () => resolveEnvelopeGuard(dtm, "bess_module_1", "active_power", children),
+      () =>
+        resolveEnvelopeGuard(dtm, "bess_module_1", "active_power", children),
       /operating_envelope/,
     );
   });
@@ -404,11 +436,18 @@ describe("resolveEnvelopeGuard", () => {
   it("throws when the module lacks its own target measurement", () => {
     const dtm = dtmWithRackChildren();
     addEnvelopeGuardFixtures(dtm);
-    dtm.templates_used.bess_module!.measurements = {} as unknown as DtmType["templates_used"][string]["measurements"];
-    const children = resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power");
+    dtm.templates_used.bess_module!.measurements =
+      {} as unknown as DtmType["templates_used"][string]["measurements"];
+    const children = resolveDistributeChildren(
+      dtm,
+      "bess_module_1",
+      "set",
+      "active_power",
+    );
 
     assert.throws(
-      () => resolveEnvelopeGuard(dtm, "bess_module_1", "active_power", children),
+      () =>
+        resolveEnvelopeGuard(dtm, "bess_module_1", "active_power", children),
       /active_power/,
     );
   });

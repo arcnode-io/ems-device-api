@@ -506,7 +506,11 @@ describe("buildProtocolSourceMap / buildCommandSourceMap — bess_system rollup 
   it("resolves state_of_charge (weighted_mean) into {topic,weight} pairs", () => {
     const map = buildProtocolSourceMap(dtmWithRollupBindings());
     const entry = map.bess_module_1?.state_of_charge as
-      | { protocol: string; operation: string; pairs: { topic: string; weight: number }[] }
+      | {
+          protocol: string;
+          operation: string;
+          pairs: { topic: string; weight: number }[];
+        }
       | undefined;
 
     assert.ok(entry, "expected state_of_charge in x-protocol-source");

@@ -55,20 +55,14 @@ describe("AuthService.login", () => {
 
   it("rejects bad password with UnauthorizedException", async () => {
     await assert.rejects(
-      service.login(
-        { username: "operator", password: "wrong" },
-        TEST_SECRET,
-      ),
+      service.login({ username: "operator", password: "wrong" }, TEST_SECRET),
       UnauthorizedException,
     );
   });
 
   it("rejects unknown username with UnauthorizedException", async () => {
     await assert.rejects(
-      service.login(
-        { username: "ghost", password: OPERATOR_PW },
-        TEST_SECRET,
-      ),
+      service.login({ username: "ghost", password: OPERATOR_PW }, TEST_SECRET),
       UnauthorizedException,
     );
   });

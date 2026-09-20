@@ -13,7 +13,10 @@
 
 import type { DeviceTemplateType } from "../templates/template.schema";
 import { buildConcreteMessages } from "./spec-messages";
-import { protocolSourceJsonSchema, commandSourceJsonSchema } from "./spec-contract";
+import {
+  protocolSourceJsonSchema,
+  commandSourceJsonSchema,
+} from "./spec-contract";
 
 const TS_FORMAT = "date-time";
 

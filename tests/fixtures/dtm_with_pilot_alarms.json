@@ -14,9 +14,7 @@
       "parent": null,
       "display_name": null,
       "connection": null,
-      "blocking": [
-        "live_mode"
-      ],
+      "blocking": ["live_mode"],
       "extra_measurements": null,
       "has_placeholders": false,
       "mode": "live"
@@ -27,9 +25,7 @@
       "parent": null,
       "display_name": null,
       "connection": null,
-      "blocking": [
-        "live_mode"
-      ],
+      "blocking": ["live_mode"],
       "extra_measurements": null,
       "has_placeholders": false,
       "mode": "live"
@@ -40,9 +36,7 @@
       "parent": null,
       "display_name": null,
       "connection": null,
-      "blocking": [
-        "live_mode"
-      ],
+      "blocking": ["live_mode"],
       "extra_measurements": null,
       "has_placeholders": false,
       "mode": "live"
@@ -216,18 +210,14 @@
         },
         {
           "name": "terminate_incoming_feeder",
-          "depends_on": [
-            "set_and_anchor"
-          ],
+          "depends_on": ["set_and_anchor"],
           "est_minutes": 180,
           "crew_role": "electrician",
           "cx_level": "L2"
         },
         {
           "name": "modbus_commission",
-          "depends_on": [
-            "terminate_incoming_feeder"
-          ],
+          "depends_on": ["terminate_incoming_feeder"],
           "est_minutes": 30,
           "crew_role": "it",
           "cx_level": "L3"
@@ -535,18 +525,14 @@
         },
         {
           "name": "wire_dc_bus",
-          "depends_on": [
-            "set_and_anchor"
-          ],
+          "depends_on": ["set_and_anchor"],
           "est_minutes": 120,
           "crew_role": "electrician",
           "cx_level": "L2"
         },
         {
           "name": "canopen_commission",
-          "depends_on": [
-            "wire_dc_bus"
-          ],
+          "depends_on": ["wire_dc_bus"],
           "est_minutes": 30,
           "crew_role": "it",
           "cx_level": "L3"
@@ -729,28 +715,21 @@
         },
         {
           "name": "connect_facility_loop",
-          "depends_on": [
-            "mount_in_rack"
-          ],
+          "depends_on": ["mount_in_rack"],
           "est_minutes": 90,
           "crew_role": "plumber",
           "cx_level": "L2"
         },
         {
           "name": "wire_control_power",
-          "depends_on": [
-            "mount_in_rack"
-          ],
+          "depends_on": ["mount_in_rack"],
           "est_minutes": 20,
           "crew_role": "electrician",
           "cx_level": "L2"
         },
         {
           "name": "redfish_commission",
-          "depends_on": [
-            "connect_facility_loop",
-            "wire_control_power"
-          ],
+          "depends_on": ["connect_facility_loop", "wire_control_power"],
           "est_minutes": 15,
           "crew_role": "it",
           "cx_level": "L3"

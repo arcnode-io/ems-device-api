@@ -27,7 +27,10 @@ import {
   type CommandSourceMap,
   type EnumValuesMap,
 } from "./spec-extensions";
-import { validateProtocolSourceMap, validateCommandSourceMap } from "./spec-contract";
+import {
+  validateProtocolSourceMap,
+  validateCommandSourceMap,
+} from "./spec-contract";
 
 const SPEC_VERSION = "3.0.0";
 const MQTT_BINDING_VERSION = "0.2.0";

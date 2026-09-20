@@ -98,12 +98,20 @@ const BacnetScBinding = z.strictObject({
 const SyntheticBinding = z
   .strictObject({
     protocol: z.literal("synthetic"),
-    operation: z.enum(["subtract", "sum", "mean", "max", "min", "weighted_mean"]),
+    operation: z.enum([
+      "subtract",
+      "sum",
+      "mean",
+      "max",
+      "min",
+      "weighted_mean",
+    ]),
     inputs: z.array(z.string()).optional(),
     source_measurement: z.string().optional(),
   })
   .refine(
-    (binding) => Boolean(binding.inputs) !== Boolean(binding.source_measurement),
+    (binding) =>
+      Boolean(binding.inputs) !== Boolean(binding.source_measurement),
     {
       message:
         "synthetic binding requires exactly one of `inputs` (fixed topic list) or `source_measurement` (projected across children)",

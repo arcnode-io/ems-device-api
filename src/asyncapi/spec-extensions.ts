@@ -197,7 +197,10 @@ function collectMeasurementBindings(
   for (const [name, meas] of Object.entries(tpl.measurements)) {
     if (meas.binding === null || meas.binding === undefined) continue;
 
-    if (meas.binding.protocol === "synthetic" && meas.binding.source_measurement) {
+    if (
+      meas.binding.protocol === "synthetic" &&
+      meas.binding.source_measurement
+    ) {
       const resolved = resolveSourceMeasurement(
         dtm,
         deviceId,
