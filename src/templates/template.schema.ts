@@ -18,10 +18,7 @@ export {
   ConditionSource,
   Reset,
 } from "./template.alarms.schema";
-export type {
-  AlarmType,
-  ConditionSourceType,
-} from "./template.alarms.schema";
+export type { AlarmType, ConditionSourceType } from "./template.alarms.schema";
 
 // Slug pattern — ADR-002 §9
 const SLUG_RE = /^[a-z][a-z0-9_]{0,62}[a-z0-9]$/;
@@ -39,15 +36,22 @@ export const Publisher = {
   LOCAL_PROCESS: "local_process",
   ANALYST: "analyst",
   GATEWAY: "gateway",
+  DER_CONTROL_API: "der_control_api",
 } as const;
 
 export const Fanout = {
   LOCAL_PROCESS: "local_process",
+  DER_CONTROL_API: "der_control_api",
 } as const;
 
 const TemplateKindSchema = z.enum(["leaf", "module"]);
-const PublisherSchema = z.enum(["local_process", "analyst", "gateway"]);
-const FanoutSchema = z.enum(["local_process"]);
+const PublisherSchema = z.enum([
+  "local_process",
+  "analyst",
+  "gateway",
+  "der_control_api",
+]);
+const FanoutSchema = z.enum(["local_process", "der_control_api"]);
 
 // ---------------------------------------------------------------------------
 // Measurement

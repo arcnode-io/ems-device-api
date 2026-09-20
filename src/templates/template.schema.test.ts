@@ -66,16 +66,34 @@ describe("TemplateKind", () => {
 });
 
 describe("Publisher", () => {
-  it("has local_process, analyst, and gateway values", () => {
+  it("has local_process, analyst, gateway, and der_control_api values", () => {
     assert.equal(Publisher.LOCAL_PROCESS, "local_process");
     assert.equal(Publisher.ANALYST, "analyst");
     assert.equal(Publisher.GATEWAY, "gateway");
+    assert.equal(Publisher.DER_CONTROL_API, "der_control_api");
+  });
+
+  it("accepts publisher=der_control_api on a measurement", () => {
+    const result = ok(Measurement, {
+      ...baseMeasurementWithPublisher,
+      publisher: "der_control_api",
+    });
+    assert.equal(result.publisher, "der_control_api");
   });
 });
 
 describe("Fanout", () => {
-  it("has local_process value", () => {
+  it("has local_process and der_control_api values", () => {
     assert.equal(Fanout.LOCAL_PROCESS, "local_process");
+    assert.equal(Fanout.DER_CONTROL_API, "der_control_api");
+  });
+
+  it("accepts fanout=der_control_api on a command", () => {
+    const result = ok(Command, {
+      ...baseCommandWithFanout,
+      fanout: "der_control_api",
+    });
+    assert.equal(result.fanout, "der_control_api");
   });
 });
 
