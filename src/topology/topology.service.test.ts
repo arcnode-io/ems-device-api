@@ -58,11 +58,11 @@ describe("TopologyService.validateAgainstCatalog", () => {
   it("passes when every slug in templates_used is in the catalog", () => {
     // Arrange
     const catalog: Record<string, DeviceTemplateType> = {
-      revenue_meter: {} as DeviceTemplateType,
+      poi_meter: {} as DeviceTemplateType,
       bess_module_v1: {} as DeviceTemplateType,
     };
     const svc = new TopologyService(stubRepo, catalog, stubMqtt, stubRenderer);
-    const dtm = makeDtm(["revenue_meter", "bess_module_v1"]);
+    const dtm = makeDtm(["poi_meter", "bess_module_v1"]);
 
     // Act / Assert — must not throw
     assert.doesNotThrow(() => svc.validateAgainstCatalog(dtm));
@@ -71,10 +71,10 @@ describe("TopologyService.validateAgainstCatalog", () => {
   it("throws BadRequestException when a slug is missing from the catalog", () => {
     // Arrange
     const catalog: Record<string, DeviceTemplateType> = {
-      revenue_meter: {} as DeviceTemplateType,
+      poi_meter: {} as DeviceTemplateType,
     };
     const svc = new TopologyService(stubRepo, catalog, stubMqtt, stubRenderer);
-    const dtm = makeDtm(["revenue_meter", "unknown_template"]);
+    const dtm = makeDtm(["poi_meter", "unknown_template"]);
 
     // Act / Assert
     assert.throws(
@@ -109,7 +109,7 @@ describe("TopologyService.validateAgainstCatalog", () => {
   it("passes when templates_used is empty", () => {
     // Arrange
     const catalog: Record<string, DeviceTemplateType> = {
-      revenue_meter: {} as DeviceTemplateType,
+      poi_meter: {} as DeviceTemplateType,
     };
     const svc = new TopologyService(stubRepo, catalog, stubMqtt, stubRenderer);
     const dtm = makeDtm([]);

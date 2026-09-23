@@ -13,14 +13,14 @@ import {
 } from "./template_loader.service";
 
 /**
- * Writes a known-good revenue_meter leaf YAML into `dir` for use in tests.
+ * Writes a known-good poi_meter leaf YAML into `dir` for use in tests.
  * @param dir Absolute path to the directory where the file should be written
  */
 function _writeRevenueMeter(dir: string): void {
   writeFileSync(
-    join(dir, "revenue_meter.yaml"),
+    join(dir, "poi_meter.yaml"),
     [
-      "template: revenue_meter",
+      "template: poi_meter",
       "kind: leaf",
       "equipment_id: GRD-MTR-001",
       "vendor: Schneider Electric",
@@ -74,7 +74,7 @@ describe("TemplateLoaderService", () => {
     assert.deepEqual(catalog, {});
   });
 
-  it("one well-formed revenue_meter.yaml → catalog has it", () => {
+  it("one well-formed poi_meter.yaml → catalog has it", () => {
     // Arrange
     mkdirSync(join(root, "leaf"));
     mkdirSync(join(root, "module"));
@@ -84,8 +84,8 @@ describe("TemplateLoaderService", () => {
     const catalog = service.loadCatalog(root);
 
     // Assert
-    assert.ok("revenue_meter" in catalog);
-    assert.equal(catalog["revenue_meter"].equipment_id, "GRD-MTR-001");
+    assert.ok("poi_meter" in catalog);
+    assert.equal(catalog["poi_meter"].equipment_id, "GRD-MTR-001");
   });
 
   it("invalid YAML → TemplateLoadError matching 'invalid YAML'", () => {
@@ -138,9 +138,9 @@ describe("TemplateLoaderService", () => {
     mkdirSync(join(root, "module"));
     _writeRevenueMeter(join(root, "leaf"));
     writeFileSync(
-      join(root, "leaf", "revenue_meter_dup.yaml"),
+      join(root, "leaf", "poi_meter_dup.yaml"),
       [
-        "template: revenue_meter",
+        "template: poi_meter",
         "kind: leaf",
         "equipment_id: GRD-MTR-001",
         "vendor: Schneider Electric",
