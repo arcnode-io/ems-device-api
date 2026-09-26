@@ -14,6 +14,7 @@ import {
   resolveSourceMeasurement,
   resolveDistributeChildren,
   resolveEnvelopeGuard,
+  resolveStateOfChargeFloor,
 } from "./spec-rollup";
 import type { DtmType } from "../topology/dtm.schema";
 
@@ -449,6 +450,107 @@ describe("resolveEnvelopeGuard", () => {
       () =>
         resolveEnvelopeGuard(dtm, "bess_module_1", "active_power", children),
       /active_power/,
+    );
+  });
+});
+
+describe("resolveStateOfChargeFloor", () => {
+  /**
+   * The rack-children fixture with a chosen reserve floor. Accepts `undefined`
+   * to stand in for a DTM written before `bess_reserve_floor_mwh` existed.
+   * @param floorMwh The reserve floor to put in sizing_params
+   * @returns The rack-children fixture with that reserve floor
+   */
+  function withFloor(floorMwh: number | undefined): DtmType {
+    const dtm = dtmWithRackChildren();
+    (
+      dtm.sizing_params as { bess_reserve_floor_mwh?: number }
+    ).bess_reserve_floor_mwh = floorMwh;
+    return dtm;
+  }
+
+  it("expresses the reserve as a percent of site-wide rack capacity", () => {
+    // Arrange: 4 MWh reserve against two 4000 kWh racks
+    const dtm = withFloor(4.0);
+
+    // Act
+    const resolved = resolveStateOfChargeFloor(dtm, "bess_module_1");
+
+    // Assert: 4000 kWh / 8000 kWh = 50%
+    assert.equal(resolved.state_of_charge_floor_percent, 50);
+  });
+
+  it("holds the same fraction in every rack so the rack reserves sum to the site floor", () => {
+    // Arrange
+    const dtm = withFloor(2.0);
+
+    // Act
+    const percent = resolveStateOfChargeFloor(
+      dtm,
+      "bess_module_1",
+    ).state_of_charge_floor_percent!;
+
+    // Assert: sum(percent/100 * capacity) across both racks == the site floor in kWh
+    const reservedKwh = 2 * ((percent / 100) * 4000);
+    assert.equal(reservedKwh, 2.0 * 1000);
+  });
+
+  it("omits the field when no reserve is configured", () => {
+    // Arrange
+    const dtm = withFloor(0);
+
+    // Act
+    const resolved = resolveStateOfChargeFloor(dtm, "bess_module_1");
+
+    // Assert: absent rather than an explicit zero, so an old gateway keeps working
+    assert.deepEqual(resolved, {});
+  });
+
+  it("omits the field when sizing_params predates the reserve floor", () => {
+    // Arrange: a DTM written before bess_reserve_floor_mwh existed
+    const dtm = withFloor(undefined);
+
+    // Act
+    const resolved = resolveStateOfChargeFloor(dtm, "bess_module_1");
+
+    // Assert
+    assert.deepEqual(resolved, {});
+  });
+
+  it("throws when the reserve exceeds total rack capacity", () => {
+    // Arrange: 9 MWh reserve against 8 MWh of racks
+    const dtm = withFloor(9.0);
+
+    // Act / Assert
+    assert.throws(
+      () => resolveStateOfChargeFloor(dtm, "bess_module_1"),
+      /exceeds/,
+    );
+  });
+
+  it("throws rather than emitting NaN when there is no rack capacity to reserve from", () => {
+    // Arrange: a reserve configured against a device with no children at all
+    const dtm = withFloor(4.0);
+
+    // Act / Assert
+    assert.throws(
+      () => resolveStateOfChargeFloor(dtm, "bess_rack_a"),
+      /capacity/,
+    );
+  });
+
+  it("rejects a rack whose template has no capacity_kwh rather than skipping its reserve", () => {
+    // Arrange: every distribute binding already requires state_of_charge on each child, so a child
+    // without capacity_kwh is a malformed battery, not a non-battery device
+    const dtm = withFloor(4.0);
+    (
+      dtm.templates_used.bess_rack as { capacity_kwh: number | null }
+    ).capacity_kwh = null;
+
+    // Act / Assert
+    assert.throws(
+      () => resolveStateOfChargeFloor(dtm, "bess_module_1"),
+      /capacity_kwh/,
     );
   });
 });

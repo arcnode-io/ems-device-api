@@ -36,6 +36,11 @@ export const DistributeChild = z.strictObject({
 });
 export type DistributeChildType = z.infer<typeof DistributeChild>;
 
+/** Resolved reserve-floor field for a `distribute` binding — see resolveStateOfChargeFloor. */
+export type StateOfChargeFloorResolution = {
+  state_of_charge_floor_percent?: number;
+};
+
 /** Resolved envelope-guard fields for a `distribute` binding — see resolveEnvelopeGuard. */
 export type EnvelopeGuardResolution = {
   power_min: number;
@@ -293,4 +298,64 @@ export function resolveEnvelopeGuard(
     ),
     active_power_topic: buildTopic(deviceId, target, targetMeas.unit),
   };
+}
+
+/** kWh in one MWh — sizing_params states the reserve in MWh, rack capacity is kWh. */
+const KWH_PER_MWH = 1000;
+
+/**
+ * Resolve a `distribute` binding's BESS reserve floor into a per-rack state-of-charge
+ * percent. The gateway compares this against each child's own cached
+ * `state_of_charge` reading, which is already a percent, so no unit conversion
+ * happens at enforcement time.
+ *
+ * One percent applies to every rack, which is what makes the rack reserves sum
+ * to the site floor even when racks differ in capacity:
+ * `sum(pct/100 * capacity_i) = pct/100 * sum(capacity_i)`. Enforcing it per rack
+ * is stricter than a site-level aggregate — holding every rack at or above the
+ * floor keeps the site total at or above the reserve at every instant, whereas a
+ * site-level check would let one rack drain past its share.
+ *
+ * Every `distribute` binding already requires `state_of_charge` on each child, so
+ * a child without `capacity_kwh` is a malformed battery rather than a non-battery
+ * device, and is rejected rather than quietly left without a floor.
+ * @param dtm The self-describing deployment manifest
+ * @param deviceId The device this distribute binding lives on (the parent)
+ * @returns The floor as a percent, or `{}` when no reserve is configured
+ */
+export function resolveStateOfChargeFloor(
+  dtm: DtmType,
+  deviceId: string,
+): StateOfChargeFloorResolution {
+  const floorMwh = dtm.sizing_params.bess_reserve_floor_mwh;
+  if (!floorMwh) return {};
+
+  let totalKwh = 0;
+  for (const child of resolveChildren(dtm, deviceId)) {
+    const tpl = dtm.templates_used[child.template];
+    if (!tpl) {
+      throw new Error(
+        `device ${deviceId}: child ${child.device_id}'s template ${child.template} not in catalog`,
+      );
+    }
+    if (tpl.capacity_kwh === null) {
+      throw new Error(
+        `device ${deviceId}: reserve floor requires capacity_kwh on child ${child.device_id}'s template (${child.template}), but it's null`,
+      );
+    }
+    totalKwh += tpl.capacity_kwh;
+  }
+  if (totalKwh === 0) {
+    throw new Error(
+      `device ${deviceId}: sizing_params sets bess_reserve_floor_mwh ${floorMwh} but this device has no child capacity to reserve it from`,
+    );
+  }
+
+  const percent = ((floorMwh * KWH_PER_MWH) / totalKwh) * 100;
+  if (percent > 100) {
+    throw new Error(
+      `device ${deviceId}: bess_reserve_floor_mwh ${floorMwh} exceeds total rack capacity ${totalKwh} kWh (${percent}% state of charge)`,
+    );
+  }
+  return { state_of_charge_floor_percent: percent };
 }

@@ -33,6 +33,7 @@ import {
   resolveSourceMeasurement,
   resolveDistributeChildren,
   resolveEnvelopeGuard,
+  resolveStateOfChargeFloor,
   type WeightedPairType,
   type DistributeChildType,
 } from "./spec-rollup";
@@ -270,6 +271,7 @@ function collectCommandBindings(
         cmd.binding.ramp_rate_per_sec !== undefined
           ? resolveEnvelopeGuard(dtm, deviceId, cmd.target, children)
           : {};
+      const socFloor = resolveStateOfChargeFloor(dtm, deviceId);
       out[name] = {
         ...conn,
         protocol: "distribute",
@@ -279,6 +281,7 @@ function collectCommandBindings(
         hysteresis_dwell_secs: cmd.binding.hysteresis_dwell_secs,
         children,
         ...envelopeGuard,
+        ...socFloor,
         unit: cmd.unit,
         verb: cmd.verb,
         target: cmd.target,
