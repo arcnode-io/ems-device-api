@@ -529,6 +529,35 @@ describe("buildProtocolSourceMap / buildCommandSourceMap — bess_system rollup 
     ]);
   });
 
+  it("carries the reserve floor as a percent when the DTM configures one", () => {
+    // Arrange: 2 MWh reserve against two 4000 kWh racks
+    const dtm = dtmWithRollupBindings();
+    (
+      dtm.sizing_params as { bess_reserve_floor_mwh?: number }
+    ).bess_reserve_floor_mwh = 2.0;
+
+    // Act
+    const map = buildCommandSourceMap(dtm);
+    const entry = map.bess_module_1?.set_active_power as
+      | { state_of_charge_floor_percent?: number }
+      | undefined;
+
+    // Assert: 2000 kWh / 8000 kWh = 25% held in every rack
+    assert.equal(entry?.state_of_charge_floor_percent, 25);
+  });
+
+  it("leaves the reserve floor out entirely when the DTM configures none", () => {
+    // Arrange: the fixture's sizing_params has no bess_reserve_floor_mwh
+    const map = buildCommandSourceMap(dtmWithRollupBindings());
+    const entry = map.bess_module_1?.set_active_power as
+      | Record<string, unknown>
+      | undefined;
+
+    // Assert: absent rather than zero, so a gateway that does not know the field still works
+    assert.ok(entry, "expected set_active_power in x-command-source");
+    assert.equal("state_of_charge_floor_percent" in entry, false);
+  });
+
   it("resolves set_active_power (distribute) into children[] with health/SoC topics + bounds", () => {
     const map = buildCommandSourceMap(dtmWithRollupBindings());
     const entry = map.bess_module_1?.set_active_power as
