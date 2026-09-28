@@ -17,3 +17,16 @@ beta:
   mqttBrokerUrl: mqtt://hivemq:1883
   mqttUsername: arcnode_device_api
   edpApiUrl: http://edp-api:8000
+
+# The full device demo: the compose stack with a DLR rating and line loading driven in, so a
+# curtailment runs end to end. Same container hostnames as beta; the site id is demo-site, matching
+# every other service's device-demo block and the HMI's.
+device-demo:
+  logLevel: INFO
+  port: 3000
+  host: 0.0.0.0
+  e2e: true
+  templateCatalogRoot: /app/device_templates
+  mqttBrokerUrl: mqtt://hivemq:1883
+  mqttUsername: arcnode_device_api
+  edpApiUrl: http://edp-api:8000

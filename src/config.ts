@@ -1,5 +1,4 @@
 import * as fs from "fs";
-import { match } from "ts-pattern";
 import * as yaml from "yaml";
 import * as winston from "winston";
 import { z } from "zod";
@@ -24,24 +23,27 @@ const Config = z.object({
 });
 
 export type ConfigType = z.infer<typeof Config>;
-const ConfigMap = z.object({
-  local: Config,
-  beta: Config,
-});
+// Reason: a record rather than fixed keys, so adding a cfg.yml block is enough to add a profile.
+// z.object would silently strip any block it does not name.
+const ConfigMap = z.record(z.string(), Config);
 
 /**
  * Loads configuration from cfg.yml file based on environment.
- * @returns Config object for current environment (ENV var or 'local' default)
- * @throws Error if cfg.yml file cannot be read or parsed
+ * @returns Config object for the block $ENV names, or `local` when $ENV is unset
+ * @throws Error if cfg.yml cannot be read or parsed, or names no such block
  * @example loadConfig() // { logLevel: 'INFO' }
  */
 export function loadConfig(): ConfigType {
   const file = fs.readFileSync("cfg.yml", "utf8");
   const config = ConfigMap.parse(yaml.parse(file));
   const environment = process.env.ENV ?? "local";
-  return match(environment)
-    .with("beta", () => config.beta)
-    .otherwise(() => config.local);
+  const block = config[environment];
+  if (block === undefined) {
+    // Reason: falling back to local would put a container on a localhost broker with a relative
+    // template path, surfacing as a connection bug rather than a misconfiguration.
+    throw new Error(`no '${environment}' block in cfg.yml`);
+  }
+  return block;
 }
 
 /**
