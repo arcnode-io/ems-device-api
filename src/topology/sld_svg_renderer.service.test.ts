@@ -12,6 +12,7 @@ import { SldSvgRendererService } from "./sld_svg_renderer.service";
 import type { DtmType } from "./dtm.schema";
 
 const ORIGINAL_CWD = process.cwd();
+const ORIGINAL_ENV = process.env.ENV;
 let tempDir: string;
 
 before(() => {
@@ -43,10 +44,16 @@ before(() => {
     ].join("\n"),
   );
   process.chdir(tempDir);
+  // Reason: the fixture above only defines local and beta, so this test must not inherit whatever
+  // $ENV the surrounding environment happens to carry — the CI runner exports ENV=ci, which made
+  // loadConfig throw here even though the repo's real cfg.yml has a ci block.
+  process.env.ENV = "local";
 });
 
 after(() => {
   process.chdir(ORIGINAL_CWD);
+  if (ORIGINAL_ENV === undefined) delete process.env.ENV;
+  else process.env.ENV = ORIGINAL_ENV;
   fs.rmSync(tempDir, { recursive: true, force: true });
 });
 
