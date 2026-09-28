@@ -202,3 +202,57 @@ describe("projectDtmToView ems_mode default", () => {
     assert.equal(view.ems_mode, "sim");
   });
 });
+
+describe("projectDtmToView bess reserve floor", () => {
+  it("derives pack capacity from the racks, not from sizing_params", () => {
+    // Arrange — two racks at 4000 kWh each (8 MWh pack), 1.0 MWh reserved.
+    // E_BESS_total_kWh deliberately disagrees: the instantiated racks are what
+    // physically exist, so they are the pack.
+    const dtm: DtmType = {
+      ...baseDtm,
+      sizing_params: {
+        ...baseDtm.sizing_params,
+        E_BESS_total_kWh: 200.0,
+        bess_reserve_floor_mwh: 1.0,
+      },
+      devices: {
+        bess_rack_01: {
+          ...baseDtm.devices["bess_01"]!,
+          device_id: "bess_rack_01",
+        },
+        bess_rack_02: {
+          ...baseDtm.devices["bess_01"]!,
+          device_id: "bess_rack_02",
+        },
+      },
+      templates_used: {
+        bess_leaf: {
+          ...baseDtm.templates_used["bess_leaf"]!,
+          capacity_kwh: 4000.0,
+        },
+      },
+      buses: [],
+    };
+
+    // Act
+    const view = projectDtmToView(dtm);
+
+    // Assert — one derivation, shared with the gateway's own floor percent.
+    assert.deepEqual(view.bess, {
+      pack_mwh: 8.0,
+      reserve_floor_mwh: 1.0,
+      reserve_floor_pct: 12.5,
+    });
+  });
+
+  it("is null when the DTM has no rack capacity to reserve from", () => {
+    // Arrange — baseDtm's template leaves capacity_kwh at its null default.
+    const dtm = baseDtm;
+
+    // Act
+    const view = projectDtmToView(dtm);
+
+    // Assert
+    assert.equal(view.bess, null);
+  });
+});

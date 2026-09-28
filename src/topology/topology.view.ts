@@ -17,6 +17,8 @@ import type {
   MeasurementType,
 } from "../templates/template.schema";
 
+const KWH_PER_MWH = 1000;
+
 /** Per-measurement metadata projected for HMI consumption. */
 export interface MeasurementView {
   unit: string;
@@ -61,6 +63,16 @@ export interface DeviceView {
   extra_measurements: Record<string, MeasurementView> | null;
 }
 
+/** Site-wide BESS pack + reserve floor, derived once here for every consumer. */
+export interface BessView {
+  /** Total installed rack capacity, MWh. */
+  pack_mwh: number;
+  /** Islanding ride-through reserve held out of the pack, MWh. */
+  reserve_floor_mwh: number;
+  /** The floor as a percent of the pack, [0..100]. */
+  reserve_floor_pct: number;
+}
+
 /** Full sanitized DTM projection — same top-level shape as DTM minus gateway fields. */
 export interface DtmView {
   deployment_uuid: string;
@@ -73,6 +85,7 @@ export interface DtmView {
   devices: Record<string, DeviceView>;
   buses: BusType[];
   templates_used: Record<string, DeviceTemplateView>;
+  bess: BessView | null;
 }
 
 /**
@@ -151,6 +164,34 @@ function projectDevice(dev: DeviceType): DeviceView {
 }
 
 /**
+ * Sum every instantiated rack's nameplate capacity and express the reserve
+ * floor as a percent of it.
+ *
+ * Reason: `sizing_params.E_BESS_total_kWh` is a sizing input and can disagree
+ * with the racks a DTM actually instantiates — the racks are what physically
+ * exist, so they are the pack. The gateway clamps discharge against this same
+ * percent (spec-rollup's `resolveStateOfChargeFloor`), so the number the HMI
+ * shows and the number the plant enforces have to come from one derivation.
+ * @param dtm Validated DTM as persisted
+ * @returns Pack + floor, or null when no device carries rack capacity
+ */
+function projectBess(dtm: DtmType): BessView | null {
+  let totalKwh = 0;
+  for (const device of Object.values(dtm.devices)) {
+    const capacity = dtm.templates_used[device.template]?.capacity_kwh;
+    if (capacity) totalKwh += capacity;
+  }
+  if (totalKwh === 0) return null;
+
+  const floorMwh = dtm.sizing_params.bess_reserve_floor_mwh;
+  return {
+    pack_mwh: totalKwh / KWH_PER_MWH,
+    reserve_floor_mwh: floorMwh,
+    reserve_floor_pct: ((floorMwh * KWH_PER_MWH) / totalKwh) * 100,
+  };
+}
+
+/**
  * Project a full DTM onto its sanitized HMI-facing view.
  * @param dtm Validated DTM as persisted
  * @returns Sanitized projection per system_adr §22
@@ -172,5 +213,6 @@ export function projectDtmToView(dtm: DtmType): DtmView {
     devices,
     buses: dtm.buses,
     templates_used: templates,
+    bess: projectBess(dtm),
   };
 }
