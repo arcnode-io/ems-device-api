@@ -11,6 +11,7 @@
  * bounds in demo mode, and IEC 61850 → SLD field mapping.
  */
 
+import { PROVISIONED_AT_COMMISSIONING } from "./dtm.schema";
 import type { DtmType, DeviceType, BusType } from "./dtm.schema";
 import type {
   DeviceTemplateType,
@@ -59,7 +60,13 @@ export interface DeviceView {
   template: string;
   parent: string | null;
   display_name: string | null;
-  blocking: DeviceType["blocking"];
+  /**
+   * False while this device is still awaiting a real address. The HMI renders
+   * unprovisioned devices grey. True for a device with no connection at all — a
+   * module has no address because it has no physical device, which is not the
+   * same as awaiting one.
+   */
+  provisioned: boolean;
   extra_measurements: Record<string, MeasurementView> | null;
 }
 
@@ -86,6 +93,24 @@ export interface DtmView {
   buses: BusType[];
   templates_used: Record<string, DeviceTemplateView>;
   bess: BessView | null;
+}
+
+/**
+ * Whether a device has a real address yet.
+ *
+ * Reason: /topology/view strips connection fields, so the HMI can't otherwise
+ * tell a device awaiting commissioning from one that's live. A null connection
+ * counts as provisioned — a module device has no address because it has no
+ * physical device, and greying a working synthetic aggregate would be wrong.
+ * @param connection The device's connection block, or null
+ * @returns False only when an address slot still holds the commissioning sentinel
+ */
+function isProvisioned(connection: DeviceType["connection"] | null): boolean {
+  if (connection === null || connection === undefined) return true;
+  return (
+    connection.host !== PROVISIONED_AT_COMMISSIONING &&
+    connection.port !== PROVISIONED_AT_COMMISSIONING
+  );
 }
 
 /**
@@ -158,7 +183,7 @@ function projectDevice(dev: DeviceType): DeviceView {
     template: dev.template,
     parent: dev.parent ?? null,
     display_name: dev.display_name ?? null,
-    blocking: dev.blocking,
+    provisioned: isProvisioned(dev.connection ?? null),
     extra_measurements: extras,
   };
 }

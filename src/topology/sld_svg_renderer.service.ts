@@ -35,7 +35,22 @@ export class SldSvgRendererService {
   async render(dtm: DtmType): Promise<Buffer> {
     const url = `${this.edpApiUrl}/edp-api/sld-hmi-svg`;
     try {
-      const { data } = await axios.post<ArrayBuffer>(url, dtm, {
+      // Reason: edp-api's Device is extra="forbid", so once it drops `blocking`
+      // (ADR §25) any DTM still carrying it would 422 and break SLD re-render on
+      // every topology change. Stripping here lets that removal land safely.
+      const payload = dtm.devices
+        ? {
+            ...dtm,
+            devices: Object.fromEntries(
+              Object.entries(dtm.devices).map(([id, device]) => {
+                const rest = { ...device };
+                delete rest.blocking;
+                return [id, rest];
+              }),
+            ),
+          }
+        : dtm;
+      const { data } = await axios.post<ArrayBuffer>(url, payload, {
         responseType: "arraybuffer",
         headers: { "Content-Type": "application/json" },
       });

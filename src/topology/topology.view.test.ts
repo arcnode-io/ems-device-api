@@ -162,7 +162,8 @@ describe("projectDtmToView", () => {
     assert.equal(dev.template, "bess_leaf");
     assert.equal(dev.parent, null);
     assert.equal(dev.display_name, "BESS Unit 1");
-    assert.deepEqual(dev.blocking, ["live_mode"]);
+    // blocking is no longer projected — ADR §25 dropped what it gated.
+    assert.equal(dev.provisioned, true);
   });
 
   it("retains buses[] verbatim", () => {
@@ -254,5 +255,63 @@ describe("projectDtmToView bess reserve floor", () => {
 
     // Assert
     assert.equal(view.bess, null);
+  });
+});
+
+describe("projectDtmToView provisioned flag", () => {
+  it("is false while a device's address is still the commissioning sentinel", () => {
+    // Arrange — how every device ships before commissioning (ADR §25).
+    const dtm = structuredClone(baseDtm);
+    dtm.devices["bess_01"]!.connection = {
+      host: "PROVISIONED_AT_COMMISSIONING",
+      port: "PROVISIONED_AT_COMMISSIONING",
+      unit_id: null,
+    } as unknown as DtmType["devices"][string]["connection"];
+
+    // Act
+    const view = projectDtmToView(dtm);
+
+    // Assert — the HMI keys grey off this; /topology/view strips connection
+    // fields, so it has no other way to know.
+    assert.equal(view.devices["bess_01"]!.provisioned, false);
+  });
+
+  it("is false when only one of host or port is provisioned", () => {
+    // Arrange
+    const dtm = structuredClone(baseDtm);
+    dtm.devices["bess_01"]!.connection = {
+      host: "10.0.0.5",
+      port: "PROVISIONED_AT_COMMISSIONING",
+      unit_id: null,
+    } as unknown as DtmType["devices"][string]["connection"];
+
+    // Act + Assert
+    assert.equal(projectDtmToView(dtm).devices["bess_01"]!.provisioned, false);
+  });
+
+  it("is true for a device with no connection — a module, not an unprovisioned leaf", () => {
+    // Arrange — a module has no address because it has no physical device.
+    // Greying a working synthetic aggregate would be wrong.
+    const dtm = structuredClone(baseDtm);
+    dtm.devices["bess_01"]!.connection = null;
+
+    // Act + Assert
+    assert.equal(projectDtmToView(dtm).devices["bess_01"]!.provisioned, true);
+  });
+
+  it("accepts a DTM that still carries blocking, and drops it from the view", () => {
+    // Arrange — edp-api still emits blocking until it removes the field, and
+    // persisted DTMs carry it indefinitely. Device is strictObject, so the field
+    // has to stay accepted.
+    const dtm = structuredClone(baseDtm);
+    (dtm.devices["bess_01"] as unknown as { blocking: string[] }).blocking = [
+      "live_mode",
+    ];
+
+    // Act
+    const view = projectDtmToView(dtm);
+
+    // Assert
+    assert.equal("blocking" in view.devices["bess_01"]!, false);
   });
 });

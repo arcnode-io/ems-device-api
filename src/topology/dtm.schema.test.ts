@@ -223,14 +223,15 @@ describe("Device", () => {
     assert.ok(msg.toLowerCase().includes("slug"), `got: ${msg}`);
   });
 
-  it("blocking defaults to ['live_mode']", () => {
-    const result = ok(Device, minimalDevice);
-    assert.deepEqual(result.blocking, ["live_mode"]);
-  });
+  it("blocking is accepted but never defaulted", () => {
+    // ADR §25 dropped the site-level state this gated. Device is strictObject,
+    // so the field stays accepted while edp-api and persisted DTMs carry it —
+    // but nothing injects it any more, which is what lets edp-api drop its own.
+    const absent = ok(Device, minimalDevice);
+    assert.equal(absent.blocking, undefined);
 
-  it("blocking can be overridden to empty array", () => {
-    const result = ok(Device, { ...minimalDevice, blocking: [] });
-    assert.deepEqual(result.blocking, []);
+    const present = ok(Device, { ...minimalDevice, blocking: ["live_mode"] });
+    assert.deepEqual(present.blocking, ["live_mode"]);
   });
 
   it("blocking accepts commissioning_complete", () => {

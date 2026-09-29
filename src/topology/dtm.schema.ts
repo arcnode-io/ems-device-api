@@ -25,9 +25,6 @@ export const ProvisionedInt = z.union([
 export const EmsMode = z.enum(["sim", "live"]);
 export type EmsModeType = z.infer<typeof EmsMode>;
 
-export const BlockingKind = z.enum(["live_mode", "commissioning_complete"]);
-export type BlockingKindType = z.infer<typeof BlockingKind>;
-
 export const Connection = z.strictObject({
   host: z.string(),
   port: ProvisionedInt,
@@ -52,7 +49,12 @@ export const Device = z.strictObject({
   parent: z.string().nullish(),
   display_name: z.string().nullish(),
   connection: Connection.nullish(),
-  blocking: z.array(BlockingKind).default(["live_mode"]),
+  // Accepted but unused. ems/system_adr.md §25 dropped the site-level live/
+  // commissioned state this gated, and nothing in any repo ever enforced it.
+  // Device is strictObject, so the field has to stay accepted while any DTM
+  // still carries it — including ones already persisted in customer databases.
+  // Not defaulted, not projected to the view, and stripped before edp-api.
+  blocking: z.array(z.string()).optional(),
   extra_measurements: z.record(z.string(), Measurement).nullish(),
   // Computed by edp-api Pydantic @property and emitted in DTM JSON.
   // Consumer-side mirror: accept-and-carry, no semantics on device-api.
