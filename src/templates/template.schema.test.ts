@@ -111,7 +111,7 @@ describe("Binding", () => {
     assert.equal(result.protocol, "modbus_tcp");
   });
 
-  it("ModbusBinding defaults: data_type=int16, word_order=high_low, scale=1.0, offset=0.0", () => {
+  it("ModbusBinding defaults: word_order=high_low, scale=1.0, offset=0.0, data_type unset", () => {
     const result = ok(Binding, {
       protocol: "modbus_tcp",
       function_code: 3,
@@ -120,7 +120,10 @@ describe("Binding", () => {
     assert.equal(result.protocol, "modbus_tcp");
     if (result.protocol !== "modbus_tcp")
       throw new Error("expected modbus_tcp");
-    assert.equal(result.data_type, "int16");
+    // Deliberately not defaulted (edp-api b68d05f): emitting nothing lets the
+    // gateway apply its own Int32 default, so there's one default in the
+    // component that decodes registers rather than two that disagree.
+    assert.equal(result.data_type, undefined);
     assert.equal(result.word_order, "high_low");
     assert.equal(result.scale, 1.0);
     assert.equal(result.offset, 0.0);

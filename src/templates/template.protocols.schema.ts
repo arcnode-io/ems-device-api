@@ -11,9 +11,15 @@ const ModbusBinding = z.strictObject({
   protocol: z.literal("modbus_tcp"),
   function_code: z.number().int(),
   address: z.number().int(),
+  // Optional with no default, deliberately not required: edp-api requires it on
+  // emit, and every live template sets it, but device-api also parses DTMs that
+  // were authored or persisted before the field existed. Omitting it here means
+  // the gateway applies its own documented default (Int32, codec.rs) — one
+  // default, in the component that actually decodes registers, instead of two
+  // that disagree.
   data_type: z
     .enum(["int16", "uint16", "int32", "uint32", "float32", "int64"])
-    .default("int16"),
+    .optional(),
   word_order: z.enum(["high_low", "low_high"]).default("high_low"),
   scale: z.number().default(1.0),
   offset: z.number().default(0.0),
@@ -50,6 +56,10 @@ const SnmpBinding = z.strictObject({
 
 const RedfishBinding = z.strictObject({
   protocol: z.literal("redfish"),
+  // Vendor OEM properties report in their own units — NVIDIA's
+  // OperatingSpeedMHz is MHz where the unit vocabulary is hertz only — so the
+  // raw value needs scaling to the unit the measurement declares.
+  scale: z.number().default(1.0),
   uri: z.string(),
   json_pointer: z.string().nullable().default(null),
 });

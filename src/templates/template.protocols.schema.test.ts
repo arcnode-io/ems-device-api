@@ -192,3 +192,36 @@ describe("edp-api mirror — SunSpec scale_factor_address", () => {
     assert.equal(fixed.scale_factor_address, undefined);
   });
 });
+
+describe("edp-api b68d05f mirror — data_type not defaulted, redfish scale", () => {
+  it("leaves data_type absent when the template omits it", () => {
+    // Arrange + Act — edp-api requires it on emit, but a DTM authored before the
+    // field existed still has to parse. Emitting nothing lets the gateway apply
+    // its own Int32 default rather than having two defaults that disagree.
+    const bare = Binding.parse({
+      protocol: "modbus_tcp",
+      function_code: 3,
+      address: 4000,
+    }) as { data_type?: string };
+
+    // Assert
+    assert.equal(bare.data_type, undefined);
+  });
+
+  it("accepts and defaults a redfish scale for MHz-reporting OEM properties", () => {
+    // Arrange + Act — NVIDIA OperatingSpeedMHz is MHz; the vocabulary is hertz.
+    const scaled = Binding.parse({
+      protocol: "redfish",
+      uri: "/Chassis/1/Processors",
+      scale: 1000000,
+    }) as { scale: number };
+    const bare = Binding.parse({
+      protocol: "redfish",
+      uri: "/Chassis/1/Power",
+    }) as { scale: number };
+
+    // Assert
+    assert.equal(scaled.scale, 1000000);
+    assert.equal(bare.scale, 1.0);
+  });
+});

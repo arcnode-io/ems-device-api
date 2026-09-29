@@ -144,9 +144,10 @@ describe("AsyncAPI multi-level (BESS-shaped)", () => {
       const sources = spec["x-protocol-source"];
       assert.ok(sources, "x-protocol-source missing");
 
-      // Modbus default fields filled by Zod: data_type=int16, word_order=high_low, scale=1, offset=0
+      // Modbus default fields filled by Zod: word_order=high_low, scale=1,
+      // offset=0. data_type is deliberately not defaulted (edp-api b68d05f) —
+      // this fixture omits it, so it's absent and the gateway applies its own.
       const MODBUS_DEFAULTS = {
-        data_type: "int16",
         word_order: "high_low",
         scale: 1,
         offset: 0,
