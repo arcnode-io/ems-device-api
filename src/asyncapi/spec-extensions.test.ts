@@ -933,3 +933,54 @@ describe("buildProtocolSourceMap — unresolved placeholder guard", () => {
     );
   });
 });
+
+describe("unprovisioned devices are not advertised as pollable", () => {
+  /** A device awaiting commissioning: address is the sentinel, not a real host. */
+  const SENTINEL = "PROVISIONED_AT_COMMISSIONING";
+
+  it("omits a device whose connection is still the commissioning sentinel", () => {
+    // Arrange — exactly the shape a freshly deployed customer DTM has before
+    // anyone fills in addresses.
+    const dtm = dtmWithBoundCommand();
+    dtm.devices.bess_rack_1!.connection = {
+      host: SENTINEL,
+      port: SENTINEL,
+      unit_id: null,
+    } as unknown as DtmType["devices"][string]["connection"];
+
+    // Act
+    const protocols = buildProtocolSourceMap(dtm);
+    const commands = buildCommandSourceMap(dtm);
+
+    // Assert — a sentinel in the spec would have the gateway resolve a host
+    // literally named PROVISIONED_AT_COMMISSIONING and dial that as a port.
+    assert.equal(protocols.bess_rack_1, undefined);
+    assert.equal(commands.bess_rack_1, undefined);
+  });
+
+  it("omits a device provisioned on only one of host or port", () => {
+    // Arrange — half-filled is still unreachable.
+    const dtm = dtmWithBoundCommand();
+    dtm.devices.bess_rack_1!.connection = {
+      host: "10.0.0.5",
+      port: SENTINEL,
+      unit_id: null,
+    } as unknown as DtmType["devices"][string]["connection"];
+
+    // Act + Assert
+    assert.equal(buildProtocolSourceMap(dtm).bess_rack_1, undefined);
+  });
+
+  it("keeps a device with no connection at all — that's a module, not unprovisioned", () => {
+    // Arrange — bess_module carries synthetic measurements the gateway computes
+    // from topics. It has no address because it has no physical device, which is
+    // a different thing from awaiting one.
+    const dtm = dtmWithSyntheticHeadroom();
+
+    // Act
+    const protocols = buildProtocolSourceMap(dtm);
+
+    // Assert
+    assert.ok(protocols.bess_module_1 !== undefined);
+  });
+});

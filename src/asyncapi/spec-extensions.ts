@@ -23,6 +23,7 @@
  * `templates_used` map.
  */
 
+import { PROVISIONED_AT_COMMISSIONING } from "../topology/dtm.schema";
 import type { DtmType } from "../topology/dtm.schema";
 import type {
   DeviceTemplateType,
@@ -83,6 +84,7 @@ export function buildCommandSourceMap(dtm: DtmType): CommandSourceMap {
   for (const [deviceId, device] of Object.entries(dtm.devices)) {
     const tpl = dtm.templates_used[device.template];
     if (!tpl) continue;
+    if (isUnprovisioned(device.connection ?? null)) continue;
     const entries = collectCommandBindings(
       dtm,
       tpl,
@@ -114,10 +116,32 @@ function buildSourceMap(
   for (const [deviceId, device] of Object.entries(dtm.devices)) {
     const tpl = dtm.templates_used[device.template];
     if (!tpl) continue;
+    if (isUnprovisioned(device.connection ?? null)) continue;
     const entries = collect(dtm, tpl, device.connection ?? null, deviceId);
     if (Object.keys(entries).length > 0) out[deviceId] = entries;
   }
   return out;
+}
+
+/**
+ * True when a device is still awaiting commissioning: it has a connection block,
+ * but the address slot carries the sentinel instead of a real host or port.
+ *
+ * Reason: a null connection is a different thing and must not be skipped. A
+ * module device has no address because it has no physical device, and its
+ * synthetic measurements are computed by the gateway from topics. An
+ * unprovisioned device has an address nobody has filled in yet, and advertising
+ * it as pollable makes the gateway resolve a host literally named
+ * PROVISIONED_AT_COMMISSIONING and dial the same string as a port.
+ * @param connection The device's connection block, or null
+ * @returns Whether the device is awaiting an address
+ */
+function isUnprovisioned(connection: ConnectionFields): boolean {
+  if (connection === null) return false;
+  return (
+    connection.host === PROVISIONED_AT_COMMISSIONING ||
+    connection.port === PROVISIONED_AT_COMMISSIONING
+  );
 }
 
 /** Per-device connection block (host/port/unit_id), nullable for module devices. */
