@@ -120,9 +120,27 @@ function dtmWithSyntheticHeadroom(): DtmType {
         display_name: null,
         connection: null,
       },
+      meter_01: {
+        device_id: "meter_01",
+        template: "poi_meter",
+        parent: null,
+        display_name: null,
+        connection: null,
+      },
     },
     buses: [],
     templates_used: {
+      poi_meter: {
+        template: "poi_meter",
+        kind: "leaf",
+        equipment_id: "MTR-001",
+        vendor: "Test",
+        model: "Test Meter",
+        description: "poi meter fixture",
+        contains: [],
+        commands: {},
+        measurements: {},
+      },
       bess_module: {
         template: "bess_module",
         kind: "module",
@@ -138,7 +156,7 @@ function dtmWithSyntheticHeadroom(): DtmType {
             type: "float",
             iec_61850_ref: "MMXU.W",
             poll_rate_hz: 1,
-            display_name_default: "Module Import Headroom",
+            display_name_default: "POI Import Headroom",
             bounds: { min: 0, max: 1, nominal: 0 },
             thresholds: {
               warn_min: 0,
@@ -154,6 +172,30 @@ function dtmWithSyntheticHeadroom(): DtmType {
               inputs: [
                 "sites/{site_id}/devices/operating_envelope/measurements/import_limit/watts",
                 "sites/{site_id}/devices/{device_id}/measurements/active_power/watts",
+              ],
+            },
+          },
+          export_headroom: {
+            unit: "watts",
+            type: "float",
+            iec_61850_ref: "MMXU.W",
+            poll_rate_hz: 1,
+            display_name_default: "POI Export Headroom",
+            bounds: { min: 0, max: 1, nominal: 0 },
+            thresholds: {
+              warn_min: 0,
+              warn_max: 1,
+              alarm_min: 0,
+              alarm_max: 1,
+            },
+            values: null,
+            publisher: "gateway",
+            binding: {
+              protocol: "synthetic",
+              operation: "sum",
+              inputs: [
+                "sites/{site_id}/devices/operating_envelope/measurements/export_limit/watts",
+                "sites/{site_id}/devices/{poi_meter_device_id}/measurements/active_power/watts",
               ],
             },
           },
@@ -832,5 +874,62 @@ describe("x-protocol-source / x-command-source split", () => {
 
     // Assert — only the command shows up, never active_power
     assert.deepEqual(Object.keys(map.bess_rack_1 ?? {}), ["set_active_power"]);
+  });
+});
+
+describe("buildProtocolSourceMap — {poi_meter_device_id} substitution", () => {
+  it("substitutes the deployment's POI meter id into synthetic inputs", () => {
+    // Arrange — edp-api d880c21 references the meter by placeholder, because
+    // its device_id varies per deployment and the template can't know it.
+    const dtm = dtmWithSyntheticHeadroom();
+
+    // Act
+    const map = buildProtocolSourceMap(dtm);
+    const entry = map.bess_module_1?.export_headroom as {
+      inputs: string[];
+    };
+
+    // Assert — a literal placeholder reaching the gateway would subscribe to a
+    // topic that can never match, so headroom would silently never publish.
+    assert.deepEqual(entry.inputs, [
+      "sites/{site_id}/devices/operating_envelope/measurements/export_limit/watts",
+      "sites/{site_id}/devices/meter_01/measurements/active_power/watts",
+    ]);
+  });
+});
+
+describe("buildProtocolSourceMap — unresolved placeholder guard", () => {
+  it("fails generation on a placeholder nobody substitutes", () => {
+    // Arrange — a future template referencing something device-api doesn't know
+    // how to resolve. Left alone it ships literally and the measurement holds
+    // forever with nothing logged, so generation is the only place to catch it.
+    const dtm = dtmWithSyntheticHeadroom();
+    const binding = dtm.templates_used.bess_module!.measurements
+      .export_headroom!.binding as unknown as { inputs: string[] };
+    binding.inputs = [
+      "sites/{site_id}/devices/{some_future_device_id}/measurements/active_power/watts",
+    ];
+
+    // Act + Assert
+    assert.throws(
+      () => buildProtocolSourceMap(dtm),
+      /unresolved placeholder\(s\) \{some_future_device_id\}/,
+    );
+  });
+
+  it("leaves {site_id} alone — the gateway substitutes it at runtime", () => {
+    // Arrange
+    const dtm = dtmWithSyntheticHeadroom();
+
+    // Act
+    const map = buildProtocolSourceMap(dtm);
+    const entry = map.bess_module_1?.import_headroom as {
+      inputs: string[];
+    };
+
+    // Assert
+    assert.ok(
+      entry.inputs.every((topic) => topic.startsWith("sites/{site_id}/")),
+    );
   });
 });

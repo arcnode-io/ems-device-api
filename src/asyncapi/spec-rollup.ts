@@ -325,28 +325,49 @@ export function resolveEnvelopeGuard(
  * @returns The meter's concrete `active_power` topic
  */
 function resolvePoiActivePowerTopic(dtm: DtmType, deviceId: string): string {
+  const meterId = resolvePoiMeterDeviceId(
+    dtm,
+    `device ${deviceId}: distribute binding's envelope guard`,
+  );
+  const activePower =
+    dtm.templates_used[dtm.devices[meterId]!.template]?.measurements
+      .active_power;
+  if (!activePower) {
+    throw new Error(
+      `device ${deviceId}: distribute binding's envelope guard needs an active_power measurement on ${meterId}'s template (${POI_METER_TEMPLATE}), none found`,
+    );
+  }
+  return buildTopic(meterId, "active_power", activePower.unit);
+}
+
+/**
+ * The device_id of this deployment's single connection-point meter.
+ *
+ * Resolved by template slug rather than by a well-known device_id, because meter
+ * ids vary per deployment (edp-api emits `poi_meter_1`, platform's fixture uses
+ * `meter_01`) and neither should have to change for resolution to work.
+ *
+ * Throws rather than returning nothing: every site has a POI meter, so its
+ * absence is a malformed DTM, not a shape to degrade into.
+ * @param dtm The self-describing deployment manifest
+ * @param context Caller-supplied error prefix naming what needed the meter
+ * @returns The meter's device_id
+ */
+export function resolvePoiMeterDeviceId(dtm: DtmType, context: string): string {
   const meters = Object.values(dtm.devices).filter(
     (device) => device.template === POI_METER_TEMPLATE,
   );
   if (meters.length === 0) {
     throw new Error(
-      `device ${deviceId}: distribute binding's envelope guard needs a device on the "${POI_METER_TEMPLATE}" template in this deployment, none found`,
+      `${context} needs a device on the "${POI_METER_TEMPLATE}" template in this deployment, none found`,
     );
   }
   if (meters.length > 1) {
     throw new Error(
-      `device ${deviceId}: distribute binding's envelope guard found more than one "${POI_METER_TEMPLATE}" device (${meters.map((found) => found.device_id).join(", ")}) — which one bounds the envelope is ambiguous`,
+      `${context} found more than one "${POI_METER_TEMPLATE}" device (${meters.map((found) => found.device_id).join(", ")}) — which one bounds the envelope is ambiguous`,
     );
   }
-  const meter = meters[0]!;
-  const activePower =
-    dtm.templates_used[meter.template]?.measurements.active_power;
-  if (!activePower) {
-    throw new Error(
-      `device ${deviceId}: distribute binding's envelope guard needs an active_power measurement on ${meter.device_id}'s template (${meter.template}), none found`,
-    );
-  }
-  return buildTopic(meter.device_id, "active_power", activePower.unit);
+  return meters[0]!.device_id;
 }
 
 /** kWh in one MWh — sizing_params states the reserve in MWh, rack capacity is kWh. */

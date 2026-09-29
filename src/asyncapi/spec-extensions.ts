@@ -33,10 +33,14 @@ import {
   resolveSourceMeasurement,
   resolveDistributeChildren,
   resolveEnvelopeGuard,
+  resolvePoiMeterDeviceId,
   resolveStateOfChargeFloor,
   type WeightedPairType,
   type DistributeChildType,
 } from "./spec-rollup";
+
+/** Stands in for the deployment's connection-point meter id, which varies per site. */
+const POI_METER_PLACEHOLDER = "{poi_meter_device_id}";
 
 /** Per-device, per-channel protocol source map. */
 export type ProtocolSourceMap = Record<string, Record<string, unknown>>;
@@ -219,7 +223,11 @@ function collectMeasurementBindings(
       continue;
     }
 
-    const resolvedBinding = resolveDeviceIdPlaceholder(meas.binding, deviceId);
+    const resolvedBinding = resolveDeviceIdPlaceholder(
+      meas.binding,
+      deviceId,
+      dtm,
+    );
     out[name] = {
       ...conn,
       ...resolvedBinding,
@@ -289,7 +297,11 @@ function collectCommandBindings(
       continue;
     }
 
-    const resolvedBinding = resolveDeviceIdPlaceholder(cmd.binding, deviceId);
+    const resolvedBinding = resolveDeviceIdPlaceholder(
+      cmd.binding,
+      deviceId,
+      dtm,
+    );
     out[name] = {
       ...conn,
       ...resolvedBinding,
@@ -302,26 +314,63 @@ function collectCommandBindings(
 }
 
 /**
- * Substitute the `{device_id}` placeholder in synthetic binding `inputs[]`
- * with the instantiating device's id. Non-synthetic bindings, and synthetic
+ * Substitute device placeholders in synthetic binding `inputs[]`: `{device_id}`
+ * with the instantiating device's id, `{poi_meter_device_id}` with the
+ * deployment's connection-point meter. Non-synthetic bindings, and synthetic
  * bindings in `source_measurement` mode (no static `inputs[]` to substitute
  * into — that resolution is separate, children-walking logic), pass through
  * unchanged. `{site_id}` stays unresolved for gateway runtime substitution.
  * @param binding Binding from a measurement or command
  * @param deviceId The instantiating device's id
+ * @param dtm The self-describing deployment manifest, for the meter lookup
  * @returns Binding with synthetic.inputs[] resolved if applicable
  */
 function resolveDeviceIdPlaceholder(
   binding: BindingType,
   deviceId: string,
+  dtm: DtmType,
 ): BindingType {
   if (binding.protocol !== "synthetic" || !binding.inputs) return binding;
-  return {
-    ...binding,
-    inputs: binding.inputs.map((topic) =>
-      topic.replace(/\{device_id\}/g, deviceId),
-    ),
-  };
+  const inputs = binding.inputs.map((topic) => {
+    const withDevice = topic.replace(/\{device_id\}/g, deviceId);
+    // Reason: resolved lazily, so a deployment with no POI meter only fails on
+    // templates that actually reference one.
+    if (!withDevice.includes(POI_METER_PLACEHOLDER)) return withDevice;
+    return withDevice.replaceAll(
+      POI_METER_PLACEHOLDER,
+      resolvePoiMeterDeviceId(dtm, `device ${deviceId}: synthetic input`),
+    );
+  });
+  assertNoUnresolvedPlaceholders(inputs, deviceId);
+  return { ...binding, inputs };
+}
+
+/**
+ * Fail generation on any `{…}` left in a synthetic input besides `{site_id}`,
+ * which the gateway fills from its own deployment config.
+ *
+ * Reason: an unsubstituted placeholder is not a runtime error anywhere. The
+ * gateway subscribes to the literal topic, it never matches, and the synthetic
+ * measurement holds forever with nothing logged. A build error is the only place
+ * this class of bug is visible.
+ * @param inputs Synthetic input topics, after substitution
+ * @param deviceId The instantiating device's id, for the error message
+ * @throws Error naming the topic and the placeholders nobody resolved
+ */
+function assertNoUnresolvedPlaceholders(
+  inputs: string[],
+  deviceId: string,
+): void {
+  for (const topic of inputs) {
+    const leftover = (topic.match(/\{[^}]+\}/g) ?? []).filter(
+      (placeholder) => placeholder !== "{site_id}",
+    );
+    if (leftover.length > 0) {
+      throw new Error(
+        `device ${deviceId}: synthetic input ${topic} has unresolved placeholder(s) ${leftover.join(", ")} — nothing substitutes them, so the gateway would subscribe to a topic that never matches`,
+      );
+    }
+  }
 }
 
 /**
