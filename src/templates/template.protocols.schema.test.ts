@@ -168,3 +168,27 @@ describe("edp-api 7938054 mirror — int64 + snmp scale", () => {
     assert.equal(bare.scale, 1.0);
   });
 });
+
+describe("edp-api mirror — SunSpec scale_factor_address", () => {
+  it("accepts a scale-factor register address, and omits it when absent", () => {
+    // Arrange + Act — SunSpec model 103: W at 40084, W_SF at 40085.
+    const sunspec = Binding.parse({
+      protocol: "modbus_tcp",
+      function_code: 3,
+      address: 40084,
+      data_type: "int16",
+      scale_factor_address: 40085,
+    }) as { scale_factor_address?: number };
+    const fixed = Binding.parse({
+      protocol: "modbus_tcp",
+      function_code: 3,
+      address: 4000,
+      data_type: "int64",
+    }) as { scale_factor_address?: number };
+
+    // Assert — optional, not defaulted: a device with a fixed scale shouldn't
+    // carry a register address it doesn't have.
+    assert.equal(sunspec.scale_factor_address, 40085);
+    assert.equal(fixed.scale_factor_address, undefined);
+  });
+});

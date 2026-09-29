@@ -17,6 +17,10 @@ const ModbusBinding = z.strictObject({
   word_order: z.enum(["high_low", "low_high"]).default("high_low"),
   scale: z.number().default(1.0),
   offset: z.number().default(0.0),
+  // SunSpec holds a measurement's exponent in its own register: value =
+  // raw * 10^sf, sf read from here. Model 103's W at 40084 pairs with W_SF at
+  // 40085. Absent for devices that state a fixed scale instead.
+  scale_factor_address: z.number().int().optional(),
 });
 
 const Dnp3Binding = z.strictObject({
