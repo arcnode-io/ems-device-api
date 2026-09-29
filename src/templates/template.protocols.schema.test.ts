@@ -225,3 +225,24 @@ describe("edp-api b68d05f mirror — data_type not defaulted, redfish scale", ()
     assert.equal(bare.scale, 1.0);
   });
 });
+
+describe("edp-api mirror — dnp3 scale", () => {
+  it("accepts and defaults a dnp3 scale for kV-primary relay points", () => {
+    // Arrange + Act — SEL-351 reports kV primary; the vocabulary is volts.
+    const scaled = Binding.parse({
+      protocol: "dnp3_tcp",
+      point_index: 0,
+      point_type: "analog_input",
+      scale: 1000,
+    }) as { scale: number };
+    const bare = Binding.parse({
+      protocol: "dnp3_tcp",
+      point_index: 1,
+      point_type: "analog_input",
+    }) as { scale: number };
+
+    // Assert
+    assert.equal(scaled.scale, 1000);
+    assert.equal(bare.scale, 1.0);
+  });
+});

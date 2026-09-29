@@ -31,6 +31,10 @@ const ModbusBinding = z.strictObject({
 
 const Dnp3Binding = z.strictObject({
   protocol: z.literal("dnp3_tcp"),
+  // Relays report in their own primary units — SEL-351's device profile gives
+  // voltages in kV primary where the unit vocabulary is volts — so the raw
+  // value needs scaling to the unit the measurement declares.
+  scale: z.number().default(1.0),
   point_index: z.number().int(),
   point_type: z.enum([
     "analog_input",
