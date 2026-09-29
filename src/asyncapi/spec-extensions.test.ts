@@ -984,3 +984,39 @@ describe("unprovisioned devices are not advertised as pollable", () => {
     assert.ok(protocols.bess_module_1 !== undefined);
   });
 });
+
+describe("connection merge is protocol-aware", () => {
+  it("stamps unit_id on modbus entries but not on other protocols", () => {
+    // Arrange — one device, real connection with a unit_id, two measurements on
+    // different protocols. unit_id is the Modbus slave id and means nothing to
+    // SNMP; the gateway's SnmpBinding doesn't model it.
+    const dtm = dtmWithBoundCommand();
+    dtm.devices.bess_rack_1!.connection = {
+      host: "10.0.0.5",
+      port: 502,
+      unit_id: "7",
+    };
+    const meas = dtm.templates_used.bess_rack!.measurements;
+    meas.snmp_thing = {
+      unit: "percent",
+      type: "float",
+      binding: { protocol: "snmp", oid: "1.3.6.1.4.1.1718.4.1.1" },
+    } as unknown as (typeof meas)[string];
+
+    // Act
+    const map = buildProtocolSourceMap(dtm) as Record<
+      string,
+      Record<string, Record<string, unknown>>
+    >;
+    const entries = map.bess_rack_1!;
+
+    // Assert
+    const modbusChannel = Object.entries(entries).find(
+      ([, entry]) => entry.protocol === "modbus_tcp",
+    )!;
+    assert.equal(modbusChannel[1].unit_id, "7");
+    assert.equal("unit_id" in entries.snmp_thing!, false);
+    assert.equal(entries.snmp_thing!.host, "10.0.0.5");
+    assert.equal(entries.snmp_thing!.port, 502);
+  });
+});

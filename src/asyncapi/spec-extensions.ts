@@ -201,6 +201,29 @@ type CommandSourceEntry = BindingType &
   ResolvedDistributeFields;
 
 /**
+ * The connection fields a given protocol actually uses.
+ *
+ * Reason: unit_id is the Modbus slave id and means nothing to Redfish, SNMP,
+ * DNP3 or BACnet, so stamping it on those entries advertises a field their
+ * binding doesn't model. A field that is present but ignored is the same shape
+ * as the bugs that strictness exists to catch — the gateway is setting
+ * serde(deny_unknown_fields) on its binding structs, and this keeps our output
+ * exactly what each binding declares.
+ * @param conn The device's merged connection fields
+ * @param protocol The binding's protocol
+ * @returns conn, minus unit_id for every protocol but modbus_tcp
+ */
+function connectionFor(
+  conn: ConnectionFields,
+  protocol: string,
+): ConnectionFields {
+  if (conn === null || protocol === "modbus_tcp") return conn;
+  const rest = { ...conn };
+  delete rest.unit_id;
+  return rest;
+}
+
+/**
  * Collect all binding-bearing measurements from a template, merging in the
  * device's connection (host/port/unit_id) plus channel meta (`unit`,
  * `poll_rate_hz`) so consumers see the complete protocol-instance picture in
@@ -237,7 +260,7 @@ function collectMeasurementBindings(
         meas.binding.operation,
       );
       out[name] = {
-        ...conn,
+        ...connectionFor(conn, "synthetic"),
         protocol: "synthetic",
         operation: meas.binding.operation,
         ...resolved,
@@ -253,7 +276,7 @@ function collectMeasurementBindings(
       dtm,
     );
     out[name] = {
-      ...conn,
+      ...connectionFor(conn, resolvedBinding.protocol),
       ...resolvedBinding,
       unit: meas.unit,
       poll_rate_hz: meas.poll_rate_hz,
@@ -305,7 +328,7 @@ function collectCommandBindings(
           : {};
       const socFloor = resolveStateOfChargeFloor(dtm, deviceId);
       out[name] = {
-        ...conn,
+        ...connectionFor(conn, "distribute"),
         protocol: "distribute",
         allocation_policy: cmd.binding.allocation_policy,
         ramp_rate_per_sec: cmd.binding.ramp_rate_per_sec,
@@ -327,7 +350,7 @@ function collectCommandBindings(
       dtm,
     );
     out[name] = {
-      ...conn,
+      ...connectionFor(conn, resolvedBinding.protocol),
       ...resolvedBinding,
       unit: cmd.unit,
       verb: cmd.verb,
