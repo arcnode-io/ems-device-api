@@ -12,7 +12,7 @@ const ModbusBinding = z.strictObject({
   function_code: z.number().int(),
   address: z.number().int(),
   data_type: z
-    .enum(["int16", "uint16", "int32", "uint32", "float32"])
+    .enum(["int16", "uint16", "int32", "uint32", "float32", "int64"])
     .default("int16"),
   word_order: z.enum(["high_low", "low_high"]).default("high_low"),
   scale: z.number().default(1.0),
@@ -38,6 +38,10 @@ const Dnp3Binding = z.strictObject({
 const SnmpBinding = z.strictObject({
   protocol: z.literal("snmp"),
   oid: z.string(),
+  // Vendor MIBs report in fixed sub-units — Sentry4-MIB gives current in 0.01 A
+  // and voltage in 0.1 V — so the raw integer needs scaling to the unit the
+  // measurement declares.
+  scale: z.number().default(1.0),
 });
 
 const RedfishBinding = z.strictObject({

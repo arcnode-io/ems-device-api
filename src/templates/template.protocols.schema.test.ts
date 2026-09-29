@@ -136,3 +136,35 @@ describe("SyntheticBinding source_measurement mode", () => {
     assert.equal(result.operation, "sum");
   });
 });
+
+describe("edp-api 7938054 mirror — int64 + snmp scale", () => {
+  it("accepts int64 for ION9000's INT64 Wh energy registers", () => {
+    // Arrange + Act
+    const result = Binding.safeParse({
+      protocol: "modbus_tcp",
+      function_code: 3,
+      address: 4000,
+      data_type: "int64",
+    });
+
+    // Assert
+    assert.equal(result.success, true);
+  });
+
+  it("accepts and defaults snmp scale for Sentry4-MIB sub-units", () => {
+    // Arrange + Act — Sentry4-MIB reports current in 0.01 A, voltage in 0.1 V.
+    const scaled = Binding.parse({
+      protocol: "snmp",
+      oid: "1.3.6.1.4.1.1718.4.1.1",
+      scale: 0.01,
+    }) as { scale: number };
+    const bare = Binding.parse({
+      protocol: "snmp",
+      oid: "1.3.6.1.4.1.1718.4.1.1",
+    }) as { scale: number };
+
+    // Assert
+    assert.equal(scaled.scale, 0.01);
+    assert.equal(bare.scale, 1.0);
+  });
+});
