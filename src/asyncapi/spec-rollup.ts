@@ -48,10 +48,18 @@ export type EnvelopeGuardResolution = {
   import_limit_topic: string;
   export_limit_topic: string;
   active_power_topic: string;
+  poi_active_power_topic: string;
 };
 
 /** Well-known singleton DOE device id — same convention already hardcoded in bess_module's own import_headroom/export_headroom inputs[]. */
 const OPERATING_ENVELOPE_DEVICE_ID = "operating_envelope";
+
+/**
+ * The connection-point meter's template slug. Resolved by template rather than
+ * by a well-known device_id, unlike the envelope above: meter ids vary per
+ * deployment (edp-api emits `poi_meter_1`, platform's fixture uses `meter_01`).
+ */
+const POI_METER_TEMPLATE = "poi_meter";
 
 /**
  * Find every device whose `parent` is `deviceId`, sorted by device_id for
@@ -297,7 +305,48 @@ export function resolveEnvelopeGuard(
       exportLimit.unit,
     ),
     active_power_topic: buildTopic(deviceId, target, targetMeas.unit),
+    poi_active_power_topic: resolvePoiActivePowerTopic(dtm, deviceId),
   };
+}
+
+/**
+ * Resolve the connection-point meter's `active_power` topic.
+ *
+ * Reason: the envelope's limits are limits on active power at the connection
+ * point (CSIP-AUS), so the control law has to compare them against POI net power
+ * rather than the battery's own output. Comparing against the battery alone
+ * treats it as the only asset at the POI, which makes a zero export limit clamp
+ * every discharge to zero even when the site is importing.
+ *
+ * Throws rather than returning nothing when the meter is missing: every site has
+ * a POI meter, so its absence is a malformed DTM, not a shape to degrade into.
+ * @param dtm The self-describing deployment manifest
+ * @param deviceId The device this distribute binding lives on (the parent)
+ * @returns The meter's concrete `active_power` topic
+ */
+function resolvePoiActivePowerTopic(dtm: DtmType, deviceId: string): string {
+  const meters = Object.values(dtm.devices).filter(
+    (device) => device.template === POI_METER_TEMPLATE,
+  );
+  if (meters.length === 0) {
+    throw new Error(
+      `device ${deviceId}: distribute binding's envelope guard needs a device on the "${POI_METER_TEMPLATE}" template in this deployment, none found`,
+    );
+  }
+  if (meters.length > 1) {
+    throw new Error(
+      `device ${deviceId}: distribute binding's envelope guard found more than one "${POI_METER_TEMPLATE}" device (${meters.map((found) => found.device_id).join(", ")}) — which one bounds the envelope is ambiguous`,
+    );
+  }
+  const meter = meters[0]!;
+  const activePower =
+    dtm.templates_used[meter.template]?.measurements.active_power;
+  if (!activePower) {
+    throw new Error(
+      `device ${deviceId}: distribute binding's envelope guard needs an active_power measurement on ${meter.device_id}'s template (${meter.template}), none found`,
+    );
+  }
+  return buildTopic(meter.device_id, "active_power", activePower.unit);
 }
 
 /** kWh in one MWh — sizing_params states the reserve in MWh, rack capacity is kWh. */

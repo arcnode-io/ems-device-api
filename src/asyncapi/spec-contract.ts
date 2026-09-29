@@ -46,6 +46,7 @@ const DistributeResolvedFields = {
   import_limit_topic: z.string().optional(),
   export_limit_topic: z.string().optional(),
   active_power_topic: z.string().optional(),
+  poi_active_power_topic: z.string().optional(),
   state_of_charge_floor_percent: z.number().optional(),
 };
 
@@ -154,11 +155,12 @@ function buildResolvedDistribute(
         entry.import_limit_topic,
         entry.export_limit_topic,
         entry.active_power_topic,
+        entry.poi_active_power_topic,
       ];
       const present = envelopeGuardFields.filter(
         (field) => field !== undefined,
       ).length;
-      const expected = entry.ramp_rate_per_sec !== undefined ? 5 : 0;
+      const expected = entry.ramp_rate_per_sec !== undefined ? 6 : 0;
       return present === expected;
     },
     {

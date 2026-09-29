@@ -110,6 +110,8 @@ describe("CommandSourceEntry", () => {
         "sites/{site_id}/devices/operating_envelope/measurements/export_limit/watts",
       active_power_topic:
         "sites/{site_id}/devices/bess_module_1/measurements/active_power/watts",
+      poi_active_power_topic:
+        "sites/{site_id}/devices/poi_meter_1/measurements/active_power/watts",
       unit: "watts",
       verb: "set",
       target: "active_power",

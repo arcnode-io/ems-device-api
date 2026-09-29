@@ -379,6 +379,40 @@ function addEnvelopeGuardFixtures(dtm: DtmType): void {
   dtm.templates_used.bess_module!.measurements = {
     active_power: { unit: "watts", type: "float", publisher: "local_process" },
   } as unknown as DtmType["templates_used"][string]["measurements"];
+  addPoiMeter(dtm, "poi_meter_1");
+}
+
+/**
+ * Add a `poi_meter`-templated device. Resolution is by template slug rather than
+ * device_id, so the id is a parameter — real deployments differ (`poi_meter_1`
+ * from edp-api, `meter_01` in platform's fixture).
+ * @param dtm A DTM built by dtmWithRackChildren(), mutated in place
+ * @param deviceId The meter's device id
+ */
+function addPoiMeter(dtm: DtmType, deviceId: string): void {
+  dtm.devices[deviceId] = {
+    device_id: deviceId,
+    template: "poi_meter",
+    blocking: [],
+    parent: null,
+    display_name: null,
+    connection: null,
+  } as unknown as DtmType["devices"][string];
+  dtm.templates_used.poi_meter = {
+    template: "poi_meter",
+    kind: "leaf",
+    equipment_id: "MTR-001",
+    vendor: "Test",
+    model: "Test Meter",
+    capacity_kwh: null,
+    description: "poi meter fixture",
+    contains: [],
+    commands: {},
+    measurements: {
+      active_power: { unit: "watts", type: "float", publisher: "gateway" },
+    },
+    alarms: [],
+  } as unknown as DtmType["templates_used"][string];
 }
 
 describe("resolveEnvelopeGuard", () => {
@@ -408,7 +442,80 @@ describe("resolveEnvelopeGuard", () => {
         "sites/{site_id}/devices/operating_envelope/measurements/export_limit/watts",
       active_power_topic:
         "sites/{site_id}/devices/bess_module_1/measurements/active_power/watts",
+      poi_active_power_topic:
+        "sites/{site_id}/devices/poi_meter_1/measurements/active_power/watts",
     });
+  });
+
+  it("resolves the POI meter by template slug, whatever its device_id", () => {
+    // Arrange — platform's fixture names its meter meter_01, edp-api names it
+    // poi_meter_1. Neither should have to change for resolution to work.
+    const dtm = dtmWithRackChildren();
+    addEnvelopeGuardFixtures(dtm);
+    delete dtm.devices.poi_meter_1;
+    addPoiMeter(dtm, "meter_01");
+    const children = resolveDistributeChildren(
+      dtm,
+      "bess_module_1",
+      "set",
+      "active_power",
+    );
+
+    // Act
+    const result = resolveEnvelopeGuard(
+      dtm,
+      "bess_module_1",
+      "active_power",
+      children,
+    );
+
+    // Assert
+    assert.equal(
+      result.poi_active_power_topic,
+      "sites/{site_id}/devices/meter_01/measurements/active_power/watts",
+    );
+  });
+
+  it("throws when the deployment has no POI meter", () => {
+    // Arrange — every site has a POI meter (Joe, 2026-09-28), so its absence is
+    // a malformed DTM rather than a supported shape to degrade into.
+    const dtm = dtmWithRackChildren();
+    addEnvelopeGuardFixtures(dtm);
+    delete dtm.devices.poi_meter_1;
+    const children = resolveDistributeChildren(
+      dtm,
+      "bess_module_1",
+      "set",
+      "active_power",
+    );
+
+    // Act + Assert
+    assert.throws(
+      () =>
+        resolveEnvelopeGuard(dtm, "bess_module_1", "active_power", children),
+      /poi_meter/,
+    );
+  });
+
+  it("throws when the deployment has more than one POI meter", () => {
+    // Arrange — two meters leaves it ambiguous which one bounds the envelope,
+    // and guessing would silently clamp against the wrong connection point.
+    const dtm = dtmWithRackChildren();
+    addEnvelopeGuardFixtures(dtm);
+    addPoiMeter(dtm, "meter_02");
+    const children = resolveDistributeChildren(
+      dtm,
+      "bess_module_1",
+      "set",
+      "active_power",
+    );
+
+    // Act + Assert
+    assert.throws(
+      () =>
+        resolveEnvelopeGuard(dtm, "bess_module_1", "active_power", children),
+      /more than one/,
+    );
   });
 
   it("throws when there's no operating_envelope device in this deployment", () => {

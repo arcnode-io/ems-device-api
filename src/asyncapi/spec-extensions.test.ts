@@ -638,6 +638,31 @@ describe("buildCommandSourceMap — envelope-guarded distribute end to end", () 
       },
       alarms: [],
     } as unknown as DtmType["templates_used"][string];
+    // Every site has a POI meter, and the envelope guard now resolves its
+    // active_power topic, so a guarded fixture needs one.
+    dtm.devices.poi_meter_1 = {
+      device_id: "poi_meter_1",
+      template: "poi_meter",
+      blocking: [],
+      parent: null,
+      display_name: null,
+      connection: null,
+    };
+    dtm.templates_used.poi_meter = {
+      template: "poi_meter",
+      kind: "leaf",
+      equipment_id: "MTR-001",
+      vendor: "Test",
+      model: "Test Meter",
+      capacity_kwh: null,
+      description: "poi meter fixture",
+      contains: [],
+      commands: {},
+      measurements: {
+        active_power: { unit: "watts", type: "float", publisher: "gateway" },
+      },
+      alarms: [],
+    } as unknown as DtmType["templates_used"][string];
     dtm.templates_used.bess_module!.commands.set_active_power!.binding = {
       protocol: "distribute",
       allocation_policy: "equal_split",
