@@ -1020,3 +1020,44 @@ describe("connection merge is protocol-aware", () => {
     assert.equal(entries.snmp_thing!.port, 502);
   });
 });
+
+describe("MQTT-computed bindings carry no connection fields", () => {
+  it("omits host/port on a synthetic entry even when the device has a connection", () => {
+    // Arrange — gpu_node is the real case: it polls Redfish per GPU and sums
+    // them synthetically, so one device has both kinds of binding at once.
+    const dtm = dtmWithBoundCommand();
+    dtm.devices.bess_rack_1!.connection = {
+      host: "10.0.0.5",
+      port: 8443,
+      unit_id: null,
+    };
+    const meas = dtm.templates_used.bess_rack!.measurements;
+    meas.total_power = {
+      unit: "watts",
+      type: "float",
+      binding: {
+        protocol: "synthetic",
+        operation: "sum",
+        inputs: [
+          "sites/{site_id}/devices/{device_id}/measurements/soc/percent",
+        ],
+      },
+    } as unknown as (typeof meas)[string];
+
+    // Act
+    const map = buildProtocolSourceMap(dtm) as Record<
+      string,
+      Record<string, Record<string, unknown>>
+    >;
+    const entries = map.bess_rack_1!;
+
+    // Assert — the gateway's SyntheticBinding models neither field, so emitting
+    // them blocks serde(deny_unknown_fields) on its binding structs.
+    assert.equal("host" in entries.total_power!, false);
+    assert.equal("port" in entries.total_power!, false);
+    const polled = Object.entries(entries).find(
+      ([, entry]) => entry.protocol === "modbus_tcp",
+    )!;
+    assert.equal(polled[1].host, "10.0.0.5");
+  });
+});

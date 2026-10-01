@@ -217,6 +217,13 @@ function connectionFor(
   conn: ConnectionFields,
   protocol: string,
 ): ConnectionFields {
+  // Reason: synthetic and distribute are computed from MQTT topics, not dialled
+  // over a south protocol, so host/port are meaningless on them — the gateway's
+  // SyntheticBinding and DistributeBinding model neither. A device can carry
+  // both kinds at once (gpu_node polls Redfish per GPU and sums them
+  // synthetically), so this can't be inferred from the device having no
+  // connection.
+  if (protocol === "synthetic" || protocol === "distribute") return null;
   if (conn === null || protocol === "modbus_tcp") return conn;
   const rest = { ...conn };
   delete rest.unit_id;
