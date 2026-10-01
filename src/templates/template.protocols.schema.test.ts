@@ -246,3 +246,25 @@ describe("edp-api mirror — dnp3 scale", () => {
     assert.equal(bare.scale, 1.0);
   });
 });
+
+describe("edp-api mirror — redfish value_map", () => {
+  it("accepts a text-to-number map, and omits it when the property is numeric", () => {
+    // Arrange + Act — cdu pump_state and gpu_node need Status/State as a number.
+    const mapped = Binding.parse({
+      protocol: "redfish",
+      uri: "/Chassis/1/Thermal",
+      json_pointer: "/Pumps/0/Status/State",
+      value_map: { Enabled: 1, Disabled: 0 },
+    }) as { value_map?: Record<string, number> };
+    const numeric = Binding.parse({
+      protocol: "redfish",
+      uri: "/Chassis/1/Power",
+      json_pointer: "/PowerControl/0/PowerConsumedWatts",
+    }) as { value_map?: Record<string, number> };
+
+    // Assert — absent, not defaulted to {}: an empty map would mean "every text
+    // reading is an error", which is a different claim from "expect numbers".
+    assert.deepEqual(mapped.value_map, { Enabled: 1, Disabled: 0 });
+    assert.equal(numeric.value_map, undefined);
+  });
+});

@@ -60,6 +60,11 @@ const SnmpBinding = z.strictObject({
 
 const RedfishBinding = z.strictObject({
   protocol: z.literal("redfish"),
+  // Some Redfish properties report text, not numbers — Status/State gives
+  // "Enabled"/"Disabled". Maps each accepted string to its numeric value. The
+  // gateway treats an unmapped string as a read error rather than guessing, so
+  // absent means this property is expected to be numeric.
+  value_map: z.record(z.string(), z.number()).optional(),
   // Vendor OEM properties report in their own units — NVIDIA's
   // OperatingSpeedMHz is MHz where the unit vocabulary is hertz only — so the
   // raw value needs scaling to the unit the measurement declares.
