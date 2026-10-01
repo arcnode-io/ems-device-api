@@ -18,9 +18,9 @@ beta:
   mqttUsername: arcnode_device_api
   edpApiUrl: http://edp-api:8000
 
-# The full device demo: the compose stack with a DLR rating and line loading driven in, so a
-# curtailment runs end to end. Same container hostnames as beta; the site id is demo-site, matching
-# every other service's device-demo block and the HMI's.
+# The full device demo: the compose stack with a utility curtailment driven in, so an event runs
+# end to end. Same container hostnames as beta; the site id is demo_site, matching every other
+# service's device-demo block and the HMI's.
 device-demo:
   logLevel: INFO
   port: 3000

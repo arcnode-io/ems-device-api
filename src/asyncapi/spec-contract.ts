@@ -205,8 +205,7 @@ export function protocolSourceJsonSchema(): object {
 
 /**
  * JSON Schema for publishing under `components.schemas.CommandSource` —
- * generated from {@link CommandSourceEntry}, never hand-written. Didn't
- * exist as a published schema before this — only ProtocolSource did.
+ * generated from {@link CommandSourceEntry}, never hand-written.
  * @returns Draft 2020-12 JSON Schema
  */
 export function commandSourceJsonSchema(): object {
