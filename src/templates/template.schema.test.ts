@@ -880,15 +880,19 @@ describe("DeviceTemplate", () => {
     );
   });
 
-  it("template without measurements OR commands is rejected", () => {
+  it("module without measurements OR commands is rejected; a leaf is allowed", () => {
+    // A module exists only to roll up or distribute across children. A leaf may
+    // be passive — on the SLD, never polled — see the passive-leaf tests below.
     const msg = fail(DeviceTemplate, {
-      ...minimalLeaf,
+      ...minimalModule,
       measurements: {},
       commands: {},
     });
-    assert.ok(
-      msg.includes("at least one of measurements or commands"),
-      `got: ${msg}`,
+    assert.ok(msg.includes("module template must declare"), `got: ${msg}`);
+    assert.deepEqual(
+      ok(DeviceTemplate, { ...minimalLeaf, measurements: {}, commands: {} })
+        .measurements,
+      {},
     );
   });
 
@@ -976,5 +980,42 @@ describe("DeviceTemplate", () => {
       msg.includes("depends_on") && msg.includes("nonexistent"),
       `got: ${msg}`,
     );
+  });
+});
+
+describe("passive leaf templates", () => {
+  it("accepts a leaf that declares no measurements and no commands", () => {
+    // Arrange + Act — ABB SafeGear is drawn on the SLD but never polled; its
+    // readings come from the SEL relay beside it.
+    const tpl = ok(DeviceTemplate, {
+      template: "switchgear",
+      kind: "leaf",
+      equipment_id: "GRD-SWG-001",
+      vendor: "ABB",
+      model: "SafeGear 15kV",
+      description: "Passive — drawn on the SLD, read via the SEL relay",
+      measurements: {},
+      commands: {},
+    });
+
+    // Assert
+    assert.deepEqual(tpl.measurements, {});
+    assert.deepEqual(tpl.commands, {});
+  });
+
+  it("still rejects a module that declares neither", () => {
+    // Arrange + Act — a module exists only to roll up or distribute across
+    // children, so it has nothing to do with no measurements and no commands.
+    const msg = fail(DeviceTemplate, {
+      template: "bess_module",
+      kind: "module",
+      description: "empty module",
+      contains: [],
+      measurements: {},
+      commands: {},
+    });
+
+    // Assert
+    assert.ok(msg.includes("module template must declare"), `got: ${msg}`);
   });
 });

@@ -271,12 +271,18 @@ export const DeviceTemplate = z
     message: "model forbidden for kind=module",
     path: ["model"],
   })
+  // Reason: a leaf may legitimately declare nothing — ABB's SafeGear switchgear
+  // is drawn on the SLD but never polled, because its readings come from the SEL
+  // relay beside it. A module still must, since a module exists only to roll up
+  // or distribute across children and has nothing to do otherwise.
   .refine(
     (tpl) =>
+      tpl.kind === "leaf" ||
       Object.keys(tpl.measurements).length > 0 ||
       Object.keys(tpl.commands).length > 0,
     {
-      message: "template must declare at least one of measurements or commands",
+      message:
+        "module template must declare at least one of measurements or commands",
     },
   )
   // install_task.depends_on must name another install_task in the same template.

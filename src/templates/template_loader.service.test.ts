@@ -105,20 +105,15 @@ describe("TemplateLoaderService", () => {
     );
   });
 
-  it("schema validation failure (no measurements/commands) → TemplateLoadError matching 'validation'", () => {
-    // Arrange
+  it("schema validation failure (module with no measurements/commands) → TemplateLoadError matching 'validation'", () => {
+    // Arrange — a module, not a leaf: a leaf may legitimately be passive (drawn
+    // on the SLD, never polled), but a module exists only to roll up or
+    // distribute across children.
     mkdirSync(join(root, "leaf"));
     mkdirSync(join(root, "module"));
     writeFileSync(
-      join(root, "leaf", "bad.yaml"),
-      [
-        "template: empty_tpl",
-        "kind: leaf",
-        "equipment_id: GRD-MTR-001",
-        "vendor: Test",
-        "model: T-1",
-        "description: empty",
-      ].join("\n"),
+      join(root, "module", "bad.yaml"),
+      ["template: empty_tpl", "kind: module", "description: empty"].join("\n"),
     );
 
     // Act / Assert
