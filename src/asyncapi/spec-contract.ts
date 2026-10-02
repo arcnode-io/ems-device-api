@@ -185,6 +185,24 @@ const protocolSourceVariants = Binding.options.map((variant) =>
     : safeExtend(variant, { ...ConnectionFields, ...ChannelMeta }),
 );
 
+/**
+ * A built source-map entry doesn't match the published contract.
+ *
+ * Reason: callers have to tell a row the current contract can't serve — which
+ * is recoverable, by replacing the row — from a genuine defect, which isn't.
+ * Both arrive as a throw from buildSpec, so the distinction has to be a type.
+ */
+export class SpecContractError extends Error {
+  /**
+   * Creates the error naming the entry that failed.
+   * @param message Which device, channel and field failed
+   */
+  constructor(message: string) {
+    super(message);
+    this.name = "SpecContractError";
+  }
+}
+
 /** The real, generated shape of one `x-protocol-source[device_id][channel]` entry. */
 export const ProtocolSourceEntry = z.discriminatedUnion(
   "protocol",
@@ -238,7 +256,7 @@ export function validateProtocolSourceMap<
     for (const [channel, entry] of Object.entries(channels)) {
       const result = ProtocolSourceEntry.safeParse(entry);
       if (!result.success) {
-        throw new Error(
+        throw new SpecContractError(
           `x-protocol-source[${deviceId}][${channel}] doesn't match ProtocolSourceEntry: ${result.error.message}`,
         );
       }
@@ -259,7 +277,7 @@ export function validateCommandSourceMap<
     for (const [channel, entry] of Object.entries(channels)) {
       const result = CommandSourceEntry.safeParse(entry);
       if (!result.success) {
-        throw new Error(
+        throw new SpecContractError(
           `x-command-source[${deviceId}][${channel}] doesn't match CommandSourceEntry: ${result.error.message}`,
         );
       }

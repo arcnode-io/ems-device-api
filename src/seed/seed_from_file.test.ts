@@ -6,6 +6,7 @@ import * as path from "node:path";
 import { BadRequestException, Logger } from "@nestjs/common";
 import type { INestApplicationContext } from "@nestjs/common";
 import { seedFromFile } from "./seed_from_file";
+import { Dtm } from "../topology/dtm.schema";
 import type { DtmType } from "../topology/dtm.schema";
 
 const STUB_DTM = {
@@ -18,6 +19,41 @@ const STUB_DTM = {
   devices: {},
   buses: [],
   templates_used: {},
+};
+
+/** STUB_DTM plus one bound enum measurement, so buildSpec has an entry to validate. */
+const STUB_DTM_WITH_BINDING = {
+  ...STUB_DTM,
+  devices: {
+    pump_01: {
+      device_id: "pump_01",
+      template: "pump",
+      connection: { host: "10.0.0.5", port: 502 },
+    },
+  },
+  templates_used: {
+    pump: {
+      template: "pump",
+      kind: "leaf",
+      equipment_id: "PMP-001",
+      vendor: "stub",
+      model: "stub",
+      description: "stub pump",
+      measurements: {
+        state: {
+          unit: "none",
+          type: "enum",
+          values: { "0": "OFF", "1": "ON" },
+          binding: {
+            protocol: "modbus_tcp",
+            function_code: 3,
+            address: 1,
+            value_map: { "0": "OFF", "1": "ON" },
+          },
+        },
+      },
+    },
+  },
 };
 
 /**
@@ -173,5 +209,35 @@ describe("seedFromFile", () => {
     const app = makeApp(service);
     await seedFromFile(app, file, makeLogger());
     assert.equal(service.save.mock.callCount(), 0);
+  });
+
+  it("table populated but the row no longer builds a spec → re-seeded", async () => {
+    // Arrange — the row an older release persisted: valid in every way except
+    // a field this release has since narrowed, so only the spec contract
+    // rejects it. value_map was a label-to-code map before it became
+    // raw-value-to-label.
+    const persisted = Dtm.parse(STUB_DTM_WITH_BINDING);
+    const binding = persisted.templates_used["pump"]!.measurements["state"]!
+      .binding as unknown as { value_map: Record<string, unknown> };
+    binding.value_map = { Enabled: 1 };
+    const file = await writeTemp(JSON.stringify(STUB_DTM));
+    const service = {
+      validateAgainstCatalog: mock.fn(),
+      getLatest: mock.fn(() => Promise.resolve(persisted)),
+      save: mock.fn(() => Promise.resolve({ id: 1 })),
+    };
+    const logger = makeLogger();
+    const warnSpy = mock.method(logger, "warn");
+
+    // Act
+    await seedFromFile(makeApp(service), file, logger);
+
+    // Assert — re-seeded, and loudly: silently serving no spec is the bug.
+    assert.equal(service.save.mock.callCount(), 1);
+    assert.equal(warnSpy.mock.callCount(), 1);
+    assert.match(
+      String(warnSpy.mock.calls[0]?.arguments[0]),
+      /no longer generates a spec/,
+    );
   });
 });

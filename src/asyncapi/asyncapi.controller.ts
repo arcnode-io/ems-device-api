@@ -24,11 +24,17 @@ export class AsyncapiController {
    * (gateway/HMI codegen pipelines).
    * @returns The AsyncAPI spec as a plain object
    * @throws NotFoundException when no DTM has been submitted yet
+   * @throws ServiceUnavailableException when the persisted DTM no longer
+   *   satisfies the current spec contract
    */
   @Get()
   @ApiOperation({ summary: "Get AsyncAPI spec (JSON)" })
   @ApiResponse({ status: 200 })
   @ApiResponse({ status: 404, description: "No DTM has been submitted yet" })
+  @ApiResponse({
+    status: 503,
+    description: "Persisted DTM predates the current spec contract; re-POST it",
+  })
   async getJson(): Promise<Record<string, unknown>> {
     const spec = await this.service.generateSpec();
     if (!spec) throw new NotFoundException("no DTM has been submitted yet");

@@ -1,4 +1,8 @@
-import { Injectable } from "@nestjs/common";
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from "@nestjs/common";
 import * as yaml from "yaml";
 import type { DtmType } from "../topology/dtm.schema";
 import { TopologyService } from "../topology/topology.service";
@@ -16,6 +20,8 @@ const ASYNCAPI_REACT_VERSION = "3.1.8";
  */
 @Injectable()
 export class AsyncapiService {
+  private readonly logger = new Logger(AsyncapiService.name);
+
   /**
    * Wires the persistence dependency.
    * @param topology Source of the persisted DTM
@@ -25,12 +31,31 @@ export class AsyncapiService {
   /**
    * Build the spec object from the latest persisted DTM.
    * @returns The AsyncAPI 3.0.0 spec, or null if no DTM has been submitted yet.
+   * @throws ServiceUnavailableException when the persisted row no longer
+   *   satisfies the current spec contract
    */
   async generateSpec(): Promise<Record<string, unknown> | null> {
     const row = await this.topology.getLatestRow();
     if (!row) return null;
-    const spec = buildSpec(row.dtm as DtmType, row.version);
-    return spec as unknown as Record<string, unknown>;
+    try {
+      const spec = buildSpec(row.dtm as DtmType, row.version);
+      return spec as unknown as Record<string, unknown>;
+    } catch (err) {
+      // Reason: 503, not 500. The service is healthy and the request is valid —
+      // the stored row is the stale part, and a POST /topology clears it. The
+      // underlying message names the device, channel and field, so it goes to
+      // the caller as well as the log: the gateway logs this body, and chasing
+      // it through container logs is the slow path.
+      const detail = err instanceof Error ? err.message : String(err);
+      this.logger.error(
+        `topology version ${row.version} does not satisfy the current spec contract`,
+        err instanceof Error ? err.stack : detail,
+      );
+      throw new ServiceUnavailableException(
+        `topology version ${row.version} does not satisfy the current spec ` +
+          `contract — POST /topology with a current DTM. ${detail}`,
+      );
+    }
   }
 
   /**
