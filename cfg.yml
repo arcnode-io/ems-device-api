@@ -19,7 +19,7 @@ beta:
   edpApiUrl: http://edp-api:8000
 
 # The full device demo: the compose stack with a utility curtailment driven in, so an event runs
-# end to end. Same container hostnames as beta; the site id is demo_site, matching every other
+# end to end. Same container hostnames as beta; the site id is device_demo_site, matching every other
 # service's device-demo block and the HMI's.
 device-demo:
   logLevel: INFO
