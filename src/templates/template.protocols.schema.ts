@@ -150,6 +150,12 @@ const SyntheticBinding = z
     ]),
     inputs: z.array(z.string()).optional(),
     source_measurement: z.string().optional(),
+    // Which children a source_measurement rolls up. A module's children are
+    // heterogeneous — a compute_module parents pdu, gpu_node, cdu and
+    // network_switch — so the subset carrying the measurement is declared here
+    // rather than inferred from whichever children happen to have it. Absent
+    // means every child, which is correct for a homogeneous module.
+    child_template: z.string().optional(),
   })
   .refine(
     (binding) =>
@@ -169,6 +175,29 @@ const SyntheticBinding = z
   .refine((binding) => !(binding.operation === "subtract" && !binding.inputs), {
     message: "operation=subtract requires inputs mode",
   });
+
+// Fleet power-cap binding — fans one percentage out to a named set of per-child
+// setpoint commands. The knobs are declared, never guessed from names: the
+// gateway writes exactly the commands listed here, on exactly the children of
+// child_template, and each child's allowable range comes from the bounds on the
+// measurement that command targets.
+const PowerCapBinding = z.strictObject({
+  protocol: z.literal("power_cap"),
+  child_template: z.string(),
+  child_commands: z.array(z.string()),
+  // Same three envelope-guard tunables as a distribute binding, declared for
+  // the same reason: a dwell that decides when a tenant's workload gets
+  // throttled is the site's control-law decision, not a number any consumer
+  // should supply.
+  //
+  // Required, unlike distribute's, because the switch here is
+  // sizing_params.compute_shed_enabled. A site that turns shedding on must
+  // never discover the tunables were absent — the alternative is a guard the
+  // gateway cannot act on, silently, on a site that asked for one.
+  ramp_rate_per_sec: z.number(),
+  hysteresis_margin: z.number(),
+  hysteresis_dwell_secs: z.number(),
+});
 
 // Command-distribution binding — fans a module-level setpoint out to
 // children per `allocation_policy`. No target-measurement field: verb+target
@@ -214,6 +243,7 @@ export const Binding = z.discriminatedUnion("protocol", [
   BacnetScBinding,
   SyntheticBinding,
   DistributeBinding,
+  PowerCapBinding,
 ]);
 
 export type BindingType = z.infer<typeof Binding>;

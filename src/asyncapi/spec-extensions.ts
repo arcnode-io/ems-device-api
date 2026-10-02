@@ -25,6 +25,7 @@
 
 import { PROVISIONED_AT_COMMISSIONING } from "../topology/dtm.schema";
 import type { DtmType } from "../topology/dtm.schema";
+import type { PowerCapChildType } from "./spec-rollup";
 import type {
   DeviceTemplateType,
   BindingType,
@@ -32,6 +33,8 @@ import type {
 } from "../templates/template.schema";
 import { concreteMessageName } from "./spec-messages";
 import {
+  resolveEnvelopeTopics,
+  resolvePowerCapChildren,
   resolveSourceMeasurement,
   resolveDistributeChildren,
   resolveEnvelopeGuard,
@@ -198,8 +201,33 @@ type ResolvedDistributeFields = {
   active_power_topic?: string;
 };
 
-/** Fully merged command entry: binding ∪ connection ∪ unit ∪ verb/target ∪ resolved distribute fields. */
-type CommandSourceEntry = BindingType &
+/**
+ * Resolved `power_cap` binding output. `child_template` and `child_commands`
+ * are authoring inputs and do not survive resolution — they become one
+ * `children` entry per (child, command), so the gateway is handed the caps to
+ * write rather than the rule for finding them. The guard fields appear only
+ * when the site enables compute shedding.
+ */
+type ResolvedPowerCap = Omit<
+  Extract<BindingType, { protocol: "power_cap" }>,
+  "child_template" | "child_commands"
+> & {
+  children: PowerCapChildType[];
+  import_limit_topic?: string;
+  export_limit_topic?: string;
+  poi_active_power_topic?: string;
+};
+
+/**
+ * Fully merged command entry: binding ∪ connection ∪ unit ∪ verb/target ∪
+ * resolved fan-out fields. The authored `power_cap` variant is excluded and
+ * replaced by its resolved form, so the type cannot express an entry that still
+ * carries authoring inputs the gateway would refuse.
+ */
+type CommandSourceEntry = (
+  | Exclude<BindingType, { protocol: "power_cap" }>
+  | ResolvedPowerCap
+) &
   ConnectionFields & { unit: string } & CommandIdentity &
   ResolvedDistributeFields;
 
@@ -233,13 +261,20 @@ function connectionFor(
   conn: ConnectionFields,
   protocol: string,
 ): ConnectionFields {
-  // Reason: synthetic and distribute are computed from MQTT topics, not dialled
-  // over a south protocol, so host/port are meaningless on them — the gateway's
-  // SyntheticBinding and DistributeBinding model neither. A device can carry
+  // Reason: synthetic, distribute and power_cap are computed from MQTT topics or
+  // fan out to other devices' commands, never dialled over a south protocol, so
+  // host/port are meaningless on them and the gateway's own binding structs
+  // model neither. A device can carry
   // both kinds at once (gpu_node polls Redfish per GPU and sums them
   // synthetically), so this can't be inferred from the device having no
   // connection.
-  if (protocol === "synthetic" || protocol === "distribute") return null;
+  if (
+    protocol === "synthetic" ||
+    protocol === "distribute" ||
+    protocol === "power_cap"
+  ) {
+    return null;
+  }
   if (conn === null || protocol === "modbus_tcp") return conn;
   const rest = { ...conn };
   delete rest.unit_id;
@@ -281,6 +316,7 @@ function collectMeasurementBindings(
         deviceId,
         meas.binding.source_measurement,
         meas.binding.operation,
+        meas.binding.child_template,
       );
       out[name] = {
         ...connectionFor(conn, "synthetic"),
@@ -362,6 +398,37 @@ function collectCommandBindings(
         children,
         ...envelopeGuard,
         ...socFloor,
+        unit: cmd.unit,
+        verb: cmd.verb,
+        target: cmd.target,
+      } as CommandSourceEntry;
+      continue;
+    }
+
+    if (cmd.binding.protocol === "power_cap") {
+      const children = resolvePowerCapChildren(
+        dtm,
+        deviceId,
+        cmd.binding.child_template,
+        cmd.binding.child_commands,
+      );
+      // Reason: the guard is what lets the gateway cap compute on its own, so it
+      // is resolved only when the site has said it may. Without it the command
+      // still exists and an operator can send a percentage by hand — the
+      // difference is whether anything reaches for it unprompted.
+      const guard = dtm.sizing_params.compute_shed_enabled
+        ? {
+            ...resolveEnvelopeTopics(dtm, deviceId),
+            ramp_rate_per_sec: cmd.binding.ramp_rate_per_sec,
+            hysteresis_margin: cmd.binding.hysteresis_margin,
+            hysteresis_dwell_secs: cmd.binding.hysteresis_dwell_secs,
+          }
+        : {};
+      out[name] = {
+        ...connectionFor(conn, "power_cap"),
+        protocol: "power_cap",
+        children,
+        ...guard,
         unit: cmd.unit,
         verb: cmd.verb,
         target: cmd.target,

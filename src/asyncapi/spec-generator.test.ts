@@ -232,3 +232,250 @@ describe("buildSpec synthetic unbalance", () => {
     );
   });
 });
+
+/**
+ * A compute hall shaped the way edp-api generates one: a module parenting a
+ * mix of templates, where only some children carry the rolled-up measurement
+ * and only some are cappable.
+ * @param shedEnabled Whether the site lets the EMS cap compute on its own
+ * @returns A DTM fixture
+ */
+function dtmWithComputeHall(shedEnabled: boolean): DtmType {
+  const gpuNode = {
+    template: "gpu_node",
+    kind: "leaf",
+    equipment_id: "GPU-001",
+    vendor: "NVIDIA",
+    model: "HGX B200",
+    description: "gpu node",
+    alarms: [],
+    measurements: {
+      gpu_1_power_limit: {
+        unit: "watts",
+        type: "float",
+        bounds: { min: 200, max: 1000, nominal: 1000 },
+        binding: {
+          protocol: "redfish",
+          uri: "/Systems/HGX/Processors/GPU_SXM_1/EnvironmentMetrics",
+          json_pointer: "/PowerLimitWatts/SetPoint",
+        },
+      },
+    },
+    commands: {
+      set_gpu_1_power_limit: {
+        verb: "set",
+        target: "gpu_1_power_limit",
+        unit: "watts",
+        payload: "float",
+        binding: {
+          protocol: "redfish",
+          uri: "/Systems/HGX/Processors/GPU_SXM_1/EnvironmentMetrics",
+          json_pointer: "/PowerLimitWatts/SetPoint",
+        },
+      },
+    },
+  };
+  return Dtm.parse({
+    deployment_uuid: "123e4567-e89b-12d3-a456-4266141740ff",
+    sizing_params: {
+      P_compute_total_kW: 1120,
+      E_BESS_total_kWh: 8000,
+      T_coolant_setpoint_C: 30,
+      compute_shed_enabled: shedEnabled,
+    },
+    devices: {
+      compute_module_01: {
+        device_id: "compute_module_01",
+        template: "compute_module",
+      },
+      // Both parented under the module, but only the gpu_node is cappable and
+      // only the pdu carries input_power — the heterogeneity is the point.
+      gpu_node_01: {
+        device_id: "gpu_node_01",
+        template: "gpu_node",
+        parent: "compute_module_01",
+        connection: { host: "10.0.0.20", port: 8443 },
+      },
+      pdu_01: {
+        device_id: "pdu_01",
+        template: "pdu",
+        parent: "compute_module_01",
+        connection: { host: "10.0.0.21", port: 161 },
+      },
+      operating_envelope: {
+        device_id: "operating_envelope",
+        template: "operating_envelope",
+      },
+      poi_meter_1: {
+        device_id: "poi_meter_1",
+        template: "poi_meter",
+        connection: { host: "10.0.0.22", port: 502 },
+      },
+    },
+    buses: [],
+    templates_used: {
+      gpu_node: gpuNode,
+      pdu: {
+        template: "pdu",
+        kind: "leaf",
+        equipment_id: "PDU-001",
+        vendor: "Raritan",
+        model: "PRO3X",
+        description: "pdu",
+        alarms: [],
+        commands: {},
+        measurements: {
+          input_power: {
+            unit: "watts",
+            type: "float",
+            binding: { protocol: "snmp", oid: "1.3.6.1.4.1.13742.6.5.4.3.1.4" },
+          },
+        },
+      },
+      compute_module: {
+        template: "compute_module",
+        kind: "module",
+        description: "compute hall",
+        alarms: [],
+        measurements: {
+          total_power: {
+            unit: "watts",
+            type: "float",
+            publisher: "gateway",
+            binding: {
+              protocol: "synthetic",
+              operation: "sum",
+              source_measurement: "input_power",
+              child_template: "pdu",
+            },
+          },
+        },
+        commands: {
+          set_power_limit: {
+            verb: "set",
+            target: "power_limit",
+            unit: "percent",
+            payload: "float",
+            binding: {
+              protocol: "power_cap",
+              child_template: "gpu_node",
+              child_commands: ["set_gpu_1_power_limit"],
+              ramp_rate_per_sec: 0.1,
+              hysteresis_margin: 0.05,
+              hysteresis_dwell_secs: 30,
+            },
+          },
+        },
+      },
+      operating_envelope: {
+        template: "operating_envelope",
+        kind: "leaf",
+        equipment_id: "ENV-001",
+        vendor: "ARCNODE",
+        model: "envelope",
+        description: "envelope",
+        alarms: [],
+        commands: {},
+        measurements: {
+          import_limit: {
+            unit: "watts",
+            type: "float",
+            publisher: "der_control_api",
+          },
+          export_limit: {
+            unit: "watts",
+            type: "float",
+            publisher: "der_control_api",
+          },
+        },
+      },
+      poi_meter: {
+        template: "poi_meter",
+        kind: "leaf",
+        equipment_id: "MTR-001",
+        vendor: "Schneider",
+        model: "ION9000",
+        description: "poi meter",
+        alarms: [],
+        commands: {},
+        measurements: {
+          active_power: {
+            unit: "watts",
+            type: "float",
+            binding: {
+              protocol: "modbus_tcp",
+              function_code: 3,
+              address: 3060,
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
+describe("buildSpec compute hall", () => {
+  it("rolls up only the children of child_template", () => {
+    // Arrange / Act
+    const spec = buildSpec(dtmWithComputeHall(false), "1.0.0") as unknown as {
+      "x-protocol-source": Record<
+        string,
+        Record<string, { inputs?: string[] }>
+      >;
+    };
+
+    // Assert — the pdu carries input_power and the gpu_node does not, so a
+    // rollup over every child would have thrown. Declaring the template is what
+    // makes a heterogeneous module resolvable at all.
+    assert.deepEqual(
+      spec["x-protocol-source"].compute_module_01?.total_power?.inputs,
+      ["sites/{site_id}/devices/pdu_01/measurements/input_power/watts"],
+    );
+  });
+
+  it("fans a power_cap out to one child cap per listed command", () => {
+    // Arrange / Act
+    const spec = buildSpec(dtmWithComputeHall(false), "1.0.0") as unknown as {
+      "x-command-source": Record<
+        string,
+        Record<string, Record<string, unknown>>
+      >;
+    };
+    const entry = spec["x-command-source"].compute_module_01?.set_power_limit;
+
+    // Assert — the range comes from the child's measurement bounds, and the
+    // guard is absent because this site has not enabled shedding.
+    assert.deepEqual(entry?.children, [
+      {
+        device_id: "gpu_node_01",
+        target: "gpu_1_power_limit",
+        min_w: 200,
+        max_w: 1000,
+      },
+    ]);
+    assert.equal(entry?.import_limit_topic, undefined);
+    assert.equal(entry?.host, undefined);
+  });
+
+  it("resolves the envelope topics only when the site enables shedding", () => {
+    // Arrange / Act
+    const spec = buildSpec(dtmWithComputeHall(true), "1.0.0") as unknown as {
+      "x-command-source": Record<
+        string,
+        Record<string, Record<string, unknown>>
+      >;
+    };
+    const entry = spec["x-command-source"].compute_module_01?.set_power_limit;
+
+    // Assert
+    assert.equal(
+      entry?.import_limit_topic,
+      "sites/{site_id}/devices/operating_envelope/measurements/import_limit/watts",
+    );
+    assert.equal(
+      entry?.poi_active_power_topic,
+      "sites/{site_id}/devices/poi_meter_1/measurements/active_power/watts",
+    );
+    assert.equal(entry?.hysteresis_dwell_secs, 30);
+  });
+});

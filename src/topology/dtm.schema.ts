@@ -40,6 +40,12 @@ export const SizingParams = z.strictObject({
   // ConfiguratorPayload.ride_through_hours / dtm_primitives.SizingParams.
   ride_through_hours: z.number().default(0),
   bess_reserve_floor_mwh: z.number().default(0),
+  // Whether this site lets the EMS cap compute on its own when the operating
+  // envelope binds and storage cannot cover it. Per-site because throttling a
+  // tenant's workload needs standing the EMS does not have by default, so the
+  // safe value is off: absent means the envelope guard never reaches for
+  // compute, and a module's power_cap command stays operator-only.
+  compute_shed_enabled: z.boolean().default(false),
 });
 export type SizingParamsType = z.infer<typeof SizingParams>;
 

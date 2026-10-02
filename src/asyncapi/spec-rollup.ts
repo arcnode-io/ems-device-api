@@ -36,6 +36,15 @@ export const DistributeChild = z.strictObject({
 });
 export type DistributeChildType = z.infer<typeof DistributeChild>;
 
+/** One child cap a `power_cap` command fans out to. */
+export const PowerCapChild = z.strictObject({
+  device_id: z.string(),
+  target: z.string(),
+  min_w: z.number(),
+  max_w: z.number(),
+});
+export type PowerCapChildType = z.infer<typeof PowerCapChild>;
+
 /** Resolved reserve-floor field for a `distribute` binding — see resolveStateOfChargeFloor. */
 export type StateOfChargeFloorResolution = {
   state_of_charge_floor_percent?: number;
@@ -66,11 +75,23 @@ const POI_METER_TEMPLATE = "poi_meter";
  * deterministic output order.
  * @param dtm The self-describing deployment manifest
  * @param deviceId The parent device's id
+ * @param childTemplateSlug Only children instantiating this template, or every
+ *     child when omitted. A module's children are heterogeneous, so a caller
+ *     that needs one kind says which.
  * @returns This device's children, sorted by device_id
  */
-export function resolveChildren(dtm: DtmType, deviceId: string): DeviceType[] {
+export function resolveChildren(
+  dtm: DtmType,
+  deviceId: string,
+  childTemplateSlug?: string,
+): DeviceType[] {
   return Object.values(dtm.devices)
     .filter((device) => device.parent === deviceId)
+    .filter(
+      (device) =>
+        childTemplateSlug === undefined ||
+        device.template === childTemplateSlug,
+    )
     .sort((deviceA, deviceB) =>
       deviceA.device_id.localeCompare(deviceB.device_id),
     );
@@ -115,13 +136,17 @@ function buildTopic(
 /**
  * Resolve a `synthetic` binding's `source_measurement` mode into concrete
  * `inputs` (sum/mean/max/min) or `pairs` (weighted_mean, weighted by each
- * child's `capacity_kwh`) across every child of `deviceId`. Fails loud if a
- * child's template is missing the named measurement, or — weighted_mean
- * only — missing `capacity_kwh`.
+ * child's `capacity_kwh`) across the children of `deviceId` that
+ * `child_template` names, or across every child when it names none. Fails loud
+ * if such a child's template is missing the named measurement, or —
+ * weighted_mean only — missing `capacity_kwh`, and fails loud when the filter
+ * matches no children at all.
  * @param dtm The self-describing deployment manifest
  * @param deviceId The device this synthetic binding lives on (the parent)
  * @param sourceMeasurement The measurement name to project across children
  * @param operation The synthetic binding's operation
+ * @param childTemplateSlug Roll up only children instantiating this template,
+ *     or every child when omitted
  * @returns `{inputs}` for sum/mean/max/min, `{pairs}` for weighted_mean
  */
 export function resolveSourceMeasurement(
@@ -129,8 +154,15 @@ export function resolveSourceMeasurement(
   deviceId: string,
   sourceMeasurement: string,
   operation: string,
+  childTemplateSlug?: string,
 ): { inputs: string[] } | { pairs: WeightedPairType[] } {
-  const children = resolveChildren(dtm, deviceId);
+  const children = resolveChildren(dtm, deviceId, childTemplateSlug);
+  if (children.length === 0) {
+    throw new Error(
+      `device ${deviceId}: source_measurement "${sourceMeasurement}" rolls up ` +
+        `${childTemplateSlug === undefined ? "its children" : `children of template "${childTemplateSlug}"`}, but none were found`,
+    );
+  }
 
   if (operation === "weighted_mean") {
     const pairs = children.map((child) => {
@@ -240,6 +272,60 @@ export function resolveDistributeChildren(
 }
 
 /**
+ * Resolve a `power_cap` binding's children: one entry per (child of
+ * `child_template`, listed command), carrying the watt range that command may
+ * be driven across.
+ *
+ * Reason the range comes from the child's measurement rather than the command:
+ * the command's `target` names a measurement on the child, and that
+ * measurement's bounds are the hardware's own limit — one fact in one place,
+ * rather than a range restated on every command that could disagree with it.
+ * @param dtm The self-describing deployment manifest
+ * @param deviceId The module this power_cap binding lives on
+ * @param childTemplateSlug Only children of this template are capped
+ * @param childCommands The command names on each child that are its knobs
+ * @returns One resolved child cap per (child, command)
+ * @throws Error when no such children exist, a child lacks a listed command,
+ *     or the measurement that command targets carries no bounds
+ */
+export function resolvePowerCapChildren(
+  dtm: DtmType,
+  deviceId: string,
+  childTemplateSlug: string,
+  childCommands: readonly string[],
+): PowerCapChildType[] {
+  const children = resolveChildren(dtm, deviceId, childTemplateSlug);
+  if (children.length === 0) {
+    throw new Error(
+      `device ${deviceId}: power_cap binding caps children of template "${childTemplateSlug}", but none are parented under it`,
+    );
+  }
+  return children.flatMap((child) => {
+    const tpl = childTemplate(dtm, child);
+    return childCommands.map((commandName) => {
+      const cmd = tpl.commands[commandName];
+      if (!cmd) {
+        throw new Error(
+          `device ${deviceId}: power_cap binding lists command "${commandName}", not found on child ${child.device_id}'s template (${child.template})`,
+        );
+      }
+      const bounds = tpl.measurements[cmd.target]?.bounds;
+      if (!bounds) {
+        throw new Error(
+          `device ${deviceId}: power_cap binding needs ${cmd.target}.bounds on child ${child.device_id}'s template (${child.template}), none found`,
+        );
+      }
+      return {
+        device_id: child.device_id,
+        target: cmd.target,
+        min_w: bounds.min,
+        max_w: bounds.max,
+      };
+    });
+  });
+}
+
+/**
  * Resolve a `distribute` binding's envelope-guard fields: the module-level
  * clamp range (summed from each already-resolved child's own power_min/
  * power_max — bess_module has no static rated-power fact of its own, since
@@ -263,10 +349,48 @@ export function resolveEnvelopeGuard(
   const power_min = children.reduce((sum, child) => sum + child.power_min, 0);
   const power_max = children.reduce((sum, child) => sum + child.power_max, 0);
 
+  const tpl = dtm.templates_used[dtm.devices[deviceId]!.template];
+  const targetMeas = tpl?.measurements[target];
+  if (!targetMeas) {
+    throw new Error(
+      `device ${deviceId}: distribute binding's envelope guard needs its own ${target} measurement, none found`,
+    );
+  }
+
+  return {
+    power_min,
+    power_max,
+    ...resolveEnvelopeTopics(dtm, deviceId),
+    active_power_topic: buildTopic(deviceId, target, targetMeas.unit),
+  };
+}
+
+/**
+ * The three topics any envelope guard watches: the site's two limits and the
+ * connection-point reading they constrain.
+ *
+ * Reason this is shared rather than duplicated: a distribute guard and a
+ * power_cap guard watch the same envelope, and two copies of the topic
+ * construction could drift so that storage and compute were constrained by
+ * different-looking versions of one limit.
+ * @param dtm The self-describing deployment manifest
+ * @param deviceId The device whose guard is being resolved, for error context
+ * @returns The envelope's import/export limit topics and the POI reading topic
+ * @throws Error when the deployment carries no operating_envelope device, its
+ *     template is absent from the catalog, or it declares no limits
+ */
+export function resolveEnvelopeTopics(
+  dtm: DtmType,
+  deviceId: string,
+): {
+  import_limit_topic: string;
+  export_limit_topic: string;
+  poi_active_power_topic: string;
+} {
   const envelopeDevice = dtm.devices[OPERATING_ENVELOPE_DEVICE_ID];
   if (!envelopeDevice) {
     throw new Error(
-      `device ${deviceId}: distribute binding's envelope guard needs a device named "${OPERATING_ENVELOPE_DEVICE_ID}" in this deployment, none found`,
+      `device ${deviceId}: envelope guard needs a device named "${OPERATING_ENVELOPE_DEVICE_ID}" in this deployment, none found`,
     );
   }
   const envelopeTpl = dtm.templates_used[envelopeDevice.template];
@@ -279,21 +403,10 @@ export function resolveEnvelopeGuard(
   const exportLimit = envelopeTpl.measurements.export_limit;
   if (!importLimit || !exportLimit) {
     throw new Error(
-      `device ${deviceId}: distribute binding's envelope guard needs import_limit and export_limit on ${OPERATING_ENVELOPE_DEVICE_ID}'s template, none found`,
+      `device ${deviceId}: envelope guard needs import_limit and export_limit on ${OPERATING_ENVELOPE_DEVICE_ID}'s template, none found`,
     );
   }
-
-  const tpl = dtm.templates_used[dtm.devices[deviceId]!.template];
-  const targetMeas = tpl?.measurements[target];
-  if (!targetMeas) {
-    throw new Error(
-      `device ${deviceId}: distribute binding's envelope guard needs its own ${target} measurement, none found`,
-    );
-  }
-
   return {
-    power_min,
-    power_max,
     import_limit_topic: buildTopic(
       OPERATING_ENVELOPE_DEVICE_ID,
       "import_limit",
@@ -304,7 +417,6 @@ export function resolveEnvelopeGuard(
       "export_limit",
       exportLimit.unit,
     ),
-    active_power_topic: buildTopic(deviceId, target, targetMeas.unit),
     poi_active_power_topic: resolvePoiActivePowerTopic(dtm, deviceId),
   };
 }

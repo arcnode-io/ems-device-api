@@ -111,6 +111,23 @@ function valueSchema(
 }
 
 /**
+ * The schema for a command payload type that inherits nothing from a
+ * measurement.
+ * @param payload The command's declared payload type
+ * @returns JSON Schema for the value alone
+ */
+function payloadSchema(payload: string): Record<string, unknown> {
+  switch (payload) {
+    case "float":
+      return { type: "number" };
+    case "bool":
+      return { type: "boolean" };
+    default:
+      throw new Error(`unsupported bare command payload type ${payload}`);
+  }
+}
+
+/**
  * Value schema for a command: trigger has none; everything else inherits the
  * target measurement's schema (the target must exist on the same template).
  * @param tpl Owning template
@@ -124,6 +141,14 @@ function commandSchema(
   cmd: CommandType,
 ): Record<string, unknown> {
   if (cmd.payload === "trigger") return sample(null);
+  // Reason: a power_cap command's target is the dispatch key its children's
+  // commands are matched on, not a measurement of this template, so there is no
+  // local measurement to inherit from. Its own payload type is the whole schema
+  // — the per-child ranges live on the children's measurements, where the
+  // hardware limit actually belongs.
+  if (cmd.binding?.protocol === "power_cap") {
+    return sample(payloadSchema(cmd.payload));
+  }
   const target = tpl.measurements[cmd.target];
   if (!target) {
     throw new Error(

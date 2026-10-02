@@ -302,8 +302,15 @@ export const DeviceTemplate = z
   })
   // A command's value schema (enum labels, bounds) is derived from the
   // measurement its target names — so the target must exist on this template.
+  //
+  // Reason for the power_cap exemption: a fleet cap commands its children, not
+  // itself. Its target is the dispatch key the gateway matches against each
+  // child's own command, and the bounds come from the child's measurement, so
+  // the parent holds no such measurement and requiring one would mean inventing
+  // a channel nothing publishes.
   .superRefine((tpl, ctx) => {
     for (const [name, cmd] of Object.entries(tpl.commands)) {
+      if (cmd.binding?.protocol === "power_cap") continue;
       if (!(cmd.target in tpl.measurements)) {
         ctx.addIssue({
           code: "custom",

@@ -18,7 +18,7 @@
 import { z } from "zod";
 import { Binding } from "../templates/template.schema";
 import { Connection } from "../topology/dtm.schema";
-import { WeightedPair, DistributeChild } from "./spec-rollup";
+import { WeightedPair, DistributeChild, PowerCapChild } from "./spec-rollup";
 
 const ConnectionFields = Connection.partial().shape;
 
@@ -77,6 +77,17 @@ function isSynthetic(variant: { shape: object }): boolean {
  */
 function isDistribute(variant: { shape: object }): boolean {
   return "allocation_policy" in variant.shape;
+}
+
+/**
+ * True for the one Binding variant that fans a percentage out to child
+ * commands — `power_cap`.
+ * @param variant One option from Binding.options
+ * @param variant.shape The variant's Zod field shape
+ * @returns Whether this variant is `power_cap`
+ */
+function isPowerCap(variant: { shape: object }): boolean {
+  return "child_commands" in variant.shape;
 }
 
 type AnyBindingVariant = (typeof Binding.options)[number];
@@ -203,17 +214,76 @@ export class SpecContractError extends Error {
   }
 }
 
+/**
+ * `power_cap`'s authored form names a rule for finding the caps
+ * (`child_template` + `child_commands`); the resolved form carries the caps
+ * themselves. So those two are dropped and `children` added, the same way a
+ * synthetic's `source_measurement` becomes `inputs`.
+ *
+ * The resolved-only invariant: the three envelope-guard topics appear exactly
+ * when `ramp_rate_per_sec` does, because the guard is resolved only for a site
+ * that enabled compute shedding *and* declared the control-law numbers.
+ * @param powerCapVariant The raw `power_cap` Binding variant
+ * @returns A refined schema matching the *resolved* entry shape only
+ */
+function buildResolvedPowerCap(
+  powerCapVariant: AnyBindingVariant,
+): z.ZodObject {
+  const resolvedShape = z
+    .strictObject(powerCapVariant.shape as z.ZodRawShape)
+    .omit({
+      child_template: true,
+      child_commands: true,
+      // Required on the authored binding, optional here: the resolved entry
+      // carries them only for a site that enabled shedding.
+      ramp_rate_per_sec: true,
+      hysteresis_margin: true,
+      hysteresis_dwell_secs: true,
+    });
+  return safeExtend(resolvedShape as unknown as AnyBindingVariant, {
+    ...ConnectionFields,
+    ...CommandUnitAndIdentity,
+    children: z.array(PowerCapChild),
+    import_limit_topic: z.string().optional(),
+    export_limit_topic: z.string().optional(),
+    poi_active_power_topic: z.string().optional(),
+    ramp_rate_per_sec: z.number().optional(),
+    hysteresis_margin: z.number().optional(),
+    hysteresis_dwell_secs: z.number().optional(),
+  }).refine(
+    (entry) => {
+      const guardFields = [
+        entry.import_limit_topic,
+        entry.export_limit_topic,
+        entry.poi_active_power_topic,
+        entry.ramp_rate_per_sec,
+        entry.hysteresis_margin,
+        entry.hysteresis_dwell_secs,
+      ];
+      const present = guardFields.filter((field) => field !== undefined).length;
+      return present === 0 || present === 6;
+    },
+    {
+      message:
+        "resolved power_cap entry: the six envelope-guard fields appear together or not at all — a partial guard is a guard the gateway cannot act on",
+    },
+  );
+}
+
 /** The real, generated shape of one `x-protocol-source[device_id][channel]` entry. */
 export const ProtocolSourceEntry = z.discriminatedUnion(
   "protocol",
   protocolSourceVariants as [z.ZodObject, ...z.ZodObject[]],
 );
 
-const commandSourceVariants = Binding.options.map((variant) =>
-  isDistribute(variant)
-    ? buildResolvedDistribute(variant)
-    : safeExtend(variant, { ...ConnectionFields, ...CommandUnitAndIdentity }),
-);
+const commandSourceVariants = Binding.options.map((variant) => {
+  if (isDistribute(variant)) return buildResolvedDistribute(variant);
+  if (isPowerCap(variant)) return buildResolvedPowerCap(variant);
+  return safeExtend(variant, {
+    ...ConnectionFields,
+    ...CommandUnitAndIdentity,
+  });
+});
 
 /** The real, generated shape of one `x-command-source[device_id][channel]` entry. */
 export const CommandSourceEntry = z.discriminatedUnion(

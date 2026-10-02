@@ -80,6 +80,95 @@ describe("DistributeBinding", () => {
   });
 });
 
+describe("child_template", () => {
+  it("names which children a source_measurement rolls up", () => {
+    // Arrange + Act — a module's children are heterogeneous (pdu, gpu_node, cdu,
+    // network_switch), so the subset that carries the measurement is declared
+    // rather than inferred from who happens to have it.
+    const result = Binding.parse({
+      protocol: "synthetic",
+      operation: "sum",
+      source_measurement: "input_power",
+      child_template: "pdu",
+    });
+
+    // Assert
+    if (result.protocol !== "synthetic") throw new Error("expected synthetic");
+    assert.equal(result.child_template, "pdu");
+  });
+
+  it("is optional, so a homogeneous rollup needs no change", () => {
+    const result = Binding.parse({
+      protocol: "synthetic",
+      operation: "sum",
+      source_measurement: "active_power",
+    });
+    if (result.protocol !== "synthetic") throw new Error("expected synthetic");
+    assert.equal(result.child_template, undefined);
+  });
+});
+
+describe("PowerCapBinding", () => {
+  it("names the child template and the commands that are its knobs", () => {
+    // Arrange + Act
+    const result = Binding.parse({
+      protocol: "power_cap",
+      child_template: "gpu_node",
+      child_commands: ["set_gpu_1_power_limit", "set_gpu_2_power_limit"],
+      ramp_rate_per_sec: 0.1,
+      hysteresis_margin: 0.05,
+      hysteresis_dwell_secs: 30,
+    });
+
+    // Assert — the gateway never guesses the knobs by name, so both are required.
+    if (result.protocol !== "power_cap") throw new Error("expected power_cap");
+    assert.equal(result.child_template, "gpu_node");
+    assert.deepEqual(result.child_commands, [
+      "set_gpu_1_power_limit",
+      "set_gpu_2_power_limit",
+    ]);
+  });
+
+  it("rejects a power_cap missing its child_commands", () => {
+    // Arrange + Act — `fail` joins messages, and Zod's message for a missing
+    // field names the type rather than the field, so assert on the issue path.
+    const result = Binding.safeParse({
+      protocol: "power_cap",
+      child_template: "gpu_node",
+      ramp_rate_per_sec: 0.1,
+      hysteresis_margin: 0.05,
+      hysteresis_dwell_secs: 30,
+    });
+
+    // Assert
+    assert.equal(result.success, false);
+    assert.deepEqual(
+      result.error.issues.map((issue) => issue.path.join(".")),
+      ["child_commands"],
+    );
+  });
+
+  it("rejects a power_cap missing a control-law tunable", () => {
+    // Arrange + Act — required, not all-or-none: the switch is the site's
+    // compute_shed_enabled, so a site that turns shedding on must never find
+    // the tunables absent.
+    const result = Binding.safeParse({
+      protocol: "power_cap",
+      child_template: "gpu_node",
+      child_commands: ["set_gpu_1_power_limit"],
+      ramp_rate_per_sec: 0.1,
+      hysteresis_margin: 0.05,
+    });
+
+    // Assert
+    assert.equal(result.success, false);
+    assert.deepEqual(
+      result.error.issues.map((issue) => issue.path.join(".")),
+      ["hysteresis_dwell_secs"],
+    );
+  });
+});
+
 describe("SyntheticBinding source_measurement mode", () => {
   it("projects one measurement across the device's children", () => {
     const result = Binding.parse({
