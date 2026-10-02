@@ -202,15 +202,26 @@ describe("TemplateLoaderService", () => {
 
 describe("TemplateLoaderService against the real catalog", () => {
   // Regression guard: nothing in the app boot path actually exercises this
-  // loader against the real device_templates/ (CI copies edp-api's current
-  // main here — see .gitlab-ci.yml — but every AppModuleWithDatabase test
-  // overrides TEMPLATE_CATALOG with a stub, and AppModule, which app.test.ts
-  // boots unstubbed, doesn't import TemplatesModule at all). A real edp-api
-  // template change can silently 400/500 in a deployed device-api until
-  // someone hits it by hand. This test is the fix: run the loader for real,
-  // in CI, on every push.
-  it("loads every template in device_templates/ without throwing", () => {
+  // loader against the real device_templates/ (the check job clones edp-api's
+  // current main there — see .gitlab-ci.yml — but every AppModuleWithDatabase
+  // test overrides TEMPLATE_CATALOG with a stub, and AppModule, which
+  // app.test.ts boots unstubbed, doesn't import TemplatesModule at all). A real
+  // edp-api template change can silently 400/500 in a deployed device-api until
+  // someone hits it by hand. This test is the fix: run the loader for real, in
+  // CI, on every push.
+  it("loads every template in device_templates/, and finds some", () => {
+    // Arrange / Act — no doesNotThrow wrapper: a TemplateLoadError names the
+    // offending file and field, and that message is the whole diagnostic.
     const service = new TemplateLoaderService();
-    assert.doesNotThrow(() => service.loadCatalog("device_templates"));
+    const catalog = service.loadCatalog("device_templates");
+
+    // Assert — non-empty is the point. loadCatalog skips a missing leaf/module
+    // dir and returns {}, so "didn't throw" also passes when it validated
+    // nothing, which is how a catalog this test never read looked green.
+    assert.ok(
+      Object.keys(catalog).length > 0,
+      "device_templates/ resolved to no templates — the catalog the check job " +
+        "clones from edp-api is missing, so this test validated nothing",
+    );
   });
 });

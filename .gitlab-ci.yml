@@ -11,6 +11,13 @@ check:
   variables:
     ENV: local
   script:
+    # The real-catalog test validates edp-api's templates, so put them here
+    # rather than let the committed `device_templates` symlink resolve to
+    # whatever a neighbouring build directory happens to hold. Same clone the
+    # publish job does, so check validates the catalog the image will bundle.
+    - rm -rf device_templates /tmp/edp-api
+    - git clone --depth 1 https://gitlab-ci-token:$CI_JOB_TOKEN@gitlab.com/arcnode-io/edp-api.git /tmp/edp-api
+    - cp -r /tmp/edp-api/device_templates ./device_templates
     - npm ci
     - npm run checks
     - npm run cover
