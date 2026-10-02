@@ -25,6 +25,15 @@ const ConnectionFields = Connection.partial().shape;
 const ChannelMeta = z.strictObject({
   unit: z.string(),
   poll_rate_hz: z.number().nullable(),
+  // $ref into components.schemas, so the gateway can publish a measurement as
+  // its declared type. Required — a consumer that can't find the schema guesses.
+  //
+  // Reason: a record keyed by the literal "$ref", not an object with a `$ref`
+  // property. The two validate the same payload, but z.toJSONSchema turns the
+  // latter into `properties: { $ref: ... }`, and the AsyncAPI parser treats any
+  // `$ref` key anywhere in the document as a reference to resolve — including
+  // one that is only *describing* a reference — and throws on the non-string.
+  payload: z.record(z.literal("$ref"), z.string()),
 }).shape;
 
 const CommandUnitAndIdentity = z.strictObject({

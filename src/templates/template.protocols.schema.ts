@@ -27,6 +27,10 @@ const ModbusBinding = z.strictObject({
   // raw * 10^sf, sf read from here. Model 103's W at 40084 pairs with W_SF at
   // 40085. Absent for devices that state a fixed scale instead.
   scale_factor_address: z.number().int().optional(),
+  // Raw device value to our enum label, so the gateway can publish the label
+  // rather than a code. Keyed by the raw reading as a string. Absent means the
+  // measurement is numeric or boolean, not an enum.
+  value_map: z.record(z.string(), z.string()).optional(),
 });
 
 const Dnp3Binding = z.strictObject({
@@ -47,6 +51,10 @@ const Dnp3Binding = z.strictObject({
   // (e.g., 5 for Group 30 Var 5 = 32-bit float). Master polls with default
   // variation when unset.
   variation: z.number().int().nullable().default(null),
+  // Raw device value to our enum label, so the gateway can publish the label
+  // rather than a code. Keyed by the raw reading as a string. Absent means the
+  // measurement is numeric or boolean, not an enum.
+  value_map: z.record(z.string(), z.string()).optional(),
 });
 
 const SnmpBinding = z.strictObject({
@@ -56,15 +64,18 @@ const SnmpBinding = z.strictObject({
   // and voltage in 0.1 V — so the raw integer needs scaling to the unit the
   // measurement declares.
   scale: z.number().default(1.0),
+  // Raw device value to our enum label, so the gateway can publish the label
+  // rather than a code. Keyed by the raw reading as a string. Absent means the
+  // measurement is numeric or boolean, not an enum.
+  value_map: z.record(z.string(), z.string()).optional(),
 });
 
 const RedfishBinding = z.strictObject({
   protocol: z.literal("redfish"),
-  // Some Redfish properties report text, not numbers — Status/State gives
-  // "Enabled"/"Disabled". Maps each accepted string to its numeric value. The
-  // gateway treats an unmapped string as a read error rather than guessing, so
-  // absent means this property is expected to be numeric.
-  value_map: z.record(z.string(), z.number()).optional(),
+  // Raw device value to our enum label, so the gateway can publish the label
+  // rather than a code. Keyed by the raw reading as a string. Absent means the
+  // measurement is numeric or boolean, not an enum.
+  value_map: z.record(z.string(), z.string()).optional(),
   // Vendor OEM properties report in their own units — NVIDIA's
   // OperatingSpeedMHz is MHz where the unit vocabulary is hertz only — so the
   // raw value needs scaling to the unit the measurement declares.

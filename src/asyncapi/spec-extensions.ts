@@ -30,6 +30,7 @@ import type {
   BindingType,
   AlarmType,
 } from "../templates/template.schema";
+import { concreteMessageName } from "./spec-messages";
 import {
   resolveSourceMeasurement,
   resolveDistributeChildren,
@@ -159,6 +160,8 @@ type ConnectionFields = {
 type ChannelMeta = {
   unit: string;
   poll_rate_hz?: number | null;
+  /** $ref into components.schemas for this measurement's payload schema. */
+  payload: { $ref: string };
 };
 
 /**
@@ -199,6 +202,19 @@ type ResolvedDistributeFields = {
 type CommandSourceEntry = BindingType &
   ConnectionFields & { unit: string } & CommandIdentity &
   ResolvedDistributeFields;
+
+/**
+ * The `payload` $ref for one measurement's entry — see
+ * {@link concreteMessageName} for why the entry needs one.
+ * @param templateSlug The owning template's slug
+ * @param name The measurement name
+ * @returns A JSON Pointer into components.schemas
+ */
+function payloadRef(templateSlug: string, name: string): { $ref: string } {
+  return {
+    $ref: `#/components/schemas/${concreteMessageName(templateSlug, name)}`,
+  };
+}
 
 /**
  * The connection fields a given protocol actually uses.
@@ -273,6 +289,7 @@ function collectMeasurementBindings(
         ...resolved,
         unit: meas.unit,
         poll_rate_hz: meas.poll_rate_hz,
+        payload: payloadRef(tpl.template, name),
       } as ProtocolSourceEntry;
       continue;
     }
@@ -287,6 +304,7 @@ function collectMeasurementBindings(
       ...resolvedBinding,
       unit: meas.unit,
       poll_rate_hz: meas.poll_rate_hz,
+      payload: payloadRef(tpl.template, name),
     } as ProtocolSourceEntry;
   }
   return out;

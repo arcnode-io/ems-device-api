@@ -111,3 +111,32 @@ describe("buildSpec self-validation", () => {
     );
   });
 });
+
+describe("buildSpec payload refs", () => {
+  it("points every x-protocol-source entry at a schema the spec declares", () => {
+    // Arrange
+    const spec = buildSpec(dtm(), "1.0.0") as unknown as {
+      "x-protocol-source": Record<
+        string,
+        Record<string, { payload: { $ref: string } }>
+      >;
+      components: { schemas: Record<string, unknown> };
+    };
+
+    // Act — every ref the source map emits, and the schemas on offer
+    const refs = Object.values(spec["x-protocol-source"]).flatMap((channels) =>
+      Object.values(channels).map((entry) => entry.payload.$ref),
+    );
+    const declared = Object.keys(spec.components.schemas).map(
+      (name) => `#/components/schemas/${name}`,
+    );
+
+    // Assert — a dangling ref would leave the gateway guessing the wire type,
+    // which is the thing the ref exists to stop.
+    assert.deepEqual(
+      refs.filter((ref) => !declared.includes(ref)),
+      [],
+    );
+    assert.deepEqual(refs, ["#/components/schemas/BessRack_ActivePower"]);
+  });
+});

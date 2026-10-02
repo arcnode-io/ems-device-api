@@ -26,6 +26,7 @@ describe("ProtocolSourceEntry", () => {
       port: 502,
       unit: "watts",
       poll_rate_hz: 1,
+      payload: { $ref: "#/components/schemas/BessRack_ActivePower" },
     });
     assert.equal(result.success, true);
   });
@@ -43,6 +44,7 @@ describe("ProtocolSourceEntry", () => {
       ],
       unit: "percent",
       poll_rate_hz: 1,
+      payload: { $ref: "#/components/schemas/BessRack_ActivePower" },
     });
     assert.equal(result.success, true);
   });
@@ -78,6 +80,7 @@ describe("ProtocolSourceEntry", () => {
       ],
       unit: "percent",
       poll_rate_hz: 1,
+      payload: { $ref: "#/components/schemas/BessRack_ActivePower" },
     });
     assert.equal(result.success, false);
   });
@@ -201,6 +204,7 @@ describe("validateProtocolSourceMap / validateCommandSourceMap", () => {
           address: 10,
           unit: "watts",
           poll_rate_hz: 1,
+          payload: { $ref: "#/components/schemas/BessRack_ActivePower" },
         },
       },
     };

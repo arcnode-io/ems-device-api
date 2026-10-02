@@ -28,6 +28,24 @@ export interface ConcreteMessage {
 const TS_SCHEMA = { type: "string", format: "date-time" };
 
 /**
+ * The components.schemas key for one template measurement or command.
+ *
+ * Reason: x-protocol-source entries carry a `payload` $ref to this name so the
+ * gateway can find a measurement's schema — the channels are shared and the
+ * entry has no template name. Both the schema and the $ref come from here, so
+ * they cannot drift apart.
+ * @param templateSlug The template's snake_case slug
+ * @param name The measurement or command name
+ * @returns e.g. `GpuNode_Gpu1ThrottleReason`
+ */
+export function concreteMessageName(
+  templateSlug: string,
+  name: string,
+): string {
+  return `${pascal(templateSlug)}_${pascal(name)}`;
+}
+
+/**
  * Derive every concrete message schema declared by the given templates.
  * @param templates Templates to project (the catalog, or a DTM's templates_used)
  * @returns Concrete messages, one per measurement and one per command
@@ -37,10 +55,9 @@ export function buildConcreteMessages(
 ): readonly ConcreteMessage[] {
   const out: ConcreteMessage[] = [];
   for (const tpl of templates) {
-    const prefix = pascal(tpl.template);
     for (const [name, meas] of Object.entries(tpl.measurements)) {
       out.push({
-        name: `${prefix}_${pascal(name)}`,
+        name: concreteMessageName(tpl.template, name),
         family: "measurement",
         wireType: meas.type,
         schema: sample(valueSchema(tpl, name, meas)),
@@ -48,7 +65,7 @@ export function buildConcreteMessages(
     }
     for (const [name, cmd] of Object.entries(tpl.commands)) {
       out.push({
-        name: `${prefix}_${pascal(name)}`,
+        name: concreteMessageName(tpl.template, name),
         family: "command",
         wireType: cmd.payload,
         schema: commandSchema(tpl, name, cmd),

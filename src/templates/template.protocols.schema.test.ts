@@ -247,24 +247,45 @@ describe("edp-api mirror — dnp3 scale", () => {
   });
 });
 
-describe("edp-api mirror — redfish value_map", () => {
-  it("accepts a text-to-number map, and omits it when the property is numeric", () => {
-    // Arrange + Act — cdu pump_state and gpu_node need Status/State as a number.
+describe("edp-api mirror — value_map on every enum-capable binding", () => {
+  it("maps a raw device value to our enum label, on each protocol", () => {
+    // Arrange + Act — the gateway publishes the label, not a code. Redfish keys
+    // are the vendor's text; Modbus, DNP3 and SNMP key on the raw integer as a
+    // string, since a JSON object key is always a string.
     const mapped = Binding.parse({
       protocol: "redfish",
       uri: "/Chassis/1/Thermal",
       json_pointer: "/Pumps/0/Status/State",
-      value_map: { Enabled: 1, Disabled: 0 },
-    }) as { value_map?: Record<string, number> };
+      value_map: { Enabled: "ENABLED", Disabled: "DISABLED" },
+    }) as { value_map?: Record<string, string> };
+    for (const base of [
+      {
+        protocol: "modbus_tcp",
+        function_code: 3,
+        address: 7,
+        data_type: "int16",
+      },
+      { protocol: "dnp3_tcp", point_index: 0, point_type: "analog_input" },
+      { protocol: "snmp", oid: "1.3.6.1.4.1.1718.4" },
+    ]) {
+      const withMap = Binding.parse({
+        ...base,
+        value_map: { "0": "AUTOMATIC_INTERNAL", "2": "AUTOMATIC_EXTERNAL_BUS" },
+      }) as { value_map?: Record<string, string> };
+      assert.equal(withMap.value_map!["2"], "AUTOMATIC_EXTERNAL_BUS");
+    }
     const numeric = Binding.parse({
       protocol: "redfish",
       uri: "/Chassis/1/Power",
       json_pointer: "/PowerControl/0/PowerConsumedWatts",
-    }) as { value_map?: Record<string, number> };
+    }) as { value_map?: Record<string, string> };
 
-    // Assert — absent, not defaulted to {}: an empty map would mean "every text
-    // reading is an error", which is a different claim from "expect numbers".
-    assert.deepEqual(mapped.value_map, { Enabled: 1, Disabled: 0 });
+    // Assert — absent, not defaulted to {}: an empty map would assert "every
+    // reading is unmappable", which differs from "this isn't an enum".
+    assert.deepEqual(mapped.value_map, {
+      Enabled: "ENABLED",
+      Disabled: "DISABLED",
+    });
     assert.equal(numeric.value_map, undefined);
   });
 });

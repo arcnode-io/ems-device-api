@@ -163,6 +163,7 @@ describe("AsyncAPI multi-level (BESS-shaped)", () => {
           ...MODBUS_DEFAULTS,
           unit: "percent",
           poll_rate_hz: 1,
+          payload: { $ref: "#/components/schemas/BessBmsV1_BmsStateOfCharge" },
         },
         "bms_01.bms_state_of_charge binding mismatch",
       );
@@ -177,6 +178,7 @@ describe("AsyncAPI multi-level (BESS-shaped)", () => {
           ...MODBUS_DEFAULTS,
           unit: "watts",
           poll_rate_hz: 1,
+          payload: { $ref: "#/components/schemas/BessInverterV1_ActivePower" },
         },
         "inverter_01.active_power binding mismatch",
       );
@@ -189,6 +191,9 @@ describe("AsyncAPI multi-level (BESS-shaped)", () => {
           ...MODBUS_DEFAULTS,
           unit: "none",
           poll_rate_hz: null,
+          payload: {
+            $ref: "#/components/schemas/BessInverterV1_InverterState",
+          },
         },
         "inverter_01.inverter_state binding mismatch",
       );
@@ -203,6 +208,7 @@ describe("AsyncAPI multi-level (BESS-shaped)", () => {
           ...MODBUS_DEFAULTS,
           unit: "volts",
           poll_rate_hz: 0.1,
+          payload: { $ref: "#/components/schemas/BessCellV1_CellVoltage" },
         },
         "cell_001.cell_voltage binding mismatch",
       );
@@ -215,6 +221,7 @@ describe("AsyncAPI multi-level (BESS-shaped)", () => {
           ...MODBUS_DEFAULTS,
           unit: "volts",
           poll_rate_hz: 0.1,
+          payload: { $ref: "#/components/schemas/BessCellV1_CellVoltage" },
         },
         "cell_002.cell_voltage binding mismatch",
       );
