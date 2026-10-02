@@ -134,7 +134,7 @@ function buildResolvedSynthetic(
       (entry) => !(entry.operation !== "weighted_mean" && !entry.inputs),
       {
         message:
-          "resolved synthetic entry: sum/mean/max/min/subtract require inputs",
+          "resolved synthetic entry: every operation but weighted_mean requires inputs",
       },
     );
 }

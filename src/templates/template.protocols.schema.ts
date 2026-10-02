@@ -143,6 +143,10 @@ const SyntheticBinding = z
       "max",
       "min",
       "weighted_mean",
+      // NEMA MG-1 style voltage unbalance: 100 × max|x − mean| / mean over the
+      // inputs. Not expressible as a composition of the others, so it's its own
+      // operation rather than a mean plus a max.
+      "unbalance",
     ]),
     inputs: z.array(z.string()).optional(),
     source_measurement: z.string().optional(),

@@ -126,6 +126,41 @@ describe("SyntheticBinding source_measurement mode", () => {
     assert.ok(msg.includes("subtract requires"), `got: ${msg}`);
   });
 
+  it("unbalance takes a fixed input list — the three phase voltages", () => {
+    // Arrange + Act
+    const result = Binding.parse({
+      protocol: "synthetic",
+      operation: "unbalance",
+      inputs: ["phase_voltage_a", "phase_voltage_b", "phase_voltage_c"],
+    });
+
+    // Assert — 100 × max|x − mean| / mean over the inputs, so the inputs are
+    // the named siblings, not a projection across children.
+    if (result.protocol !== "synthetic") throw new Error("expected synthetic");
+    assert.equal(result.operation, "unbalance");
+    assert.deepEqual(result.inputs, [
+      "phase_voltage_a",
+      "phase_voltage_b",
+      "phase_voltage_c",
+    ]);
+  });
+
+  it("unbalance works in source_measurement mode too", () => {
+    // Arrange + Act — mode-agnostic like sum/mean/max/min, matching edp-api.
+    // Reason: the mirror never rejects an authoring form the producer emits;
+    // source_measurement resolves into inputs before publishing anyway.
+    const result = Binding.parse({
+      protocol: "synthetic",
+      operation: "unbalance",
+      source_measurement: "phase_voltage_a",
+    });
+
+    // Assert
+    if (result.protocol !== "synthetic") throw new Error("expected synthetic");
+    assert.equal(result.operation, "unbalance");
+    assert.equal(result.source_measurement, "phase_voltage_a");
+  });
+
   it("sum is valid in source_measurement mode", () => {
     const result = Binding.parse({
       protocol: "synthetic",
