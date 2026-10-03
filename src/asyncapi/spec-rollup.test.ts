@@ -15,6 +15,7 @@ import {
   resolveDistributeChildren,
   resolveEnvelopeGuard,
   resolveStateOfChargeFloor,
+  resolveOperatorReserve,
 } from "./spec-rollup";
 import type { DtmType } from "../topology/dtm.schema";
 
@@ -674,5 +675,75 @@ describe("resolveStateOfChargeFloor", () => {
       () => resolveStateOfChargeFloor(dtm, "bess_module_1"),
       /capacity_kwh/,
     );
+  });
+});
+
+/**
+ * Adds a der_dispatch device carrying the operator_reserve measurement, as a real deployment does
+ * — it is onboarded at commissioning rather than emitted by the generator.
+ * @param dtm A DTM fixture to extend
+ * @returns The same DTM, with der_dispatch present
+ */
+function withDerDispatch(dtm: DtmType): DtmType {
+  dtm.devices["der_dispatch"] = {
+    device_id: "der_dispatch",
+    template: "der_dispatch",
+    parent: null,
+  };
+  dtm.templates_used["der_dispatch"] = {
+    template: "der_dispatch",
+    kind: "leaf",
+    equipment_id: null,
+    vendor: null,
+    model: null,
+    capacity_kwh: null,
+    description: "dispatch policy fixture",
+    contains: [],
+    commands: {},
+    measurements: {
+      operator_reserve: {
+        unit: "watt_hours",
+        type: "float",
+        publisher: "der_control_api",
+      },
+    },
+    alarms: [],
+  } as unknown as DtmType["templates_used"][string];
+  return dtm;
+}
+
+describe("resolveOperatorReserve", () => {
+  it("resolves the topic and sums site capacity into watt-hours", () => {
+    // Arrange: two racks at 4000 kWh each
+    const dtm = withDerDispatch(dtmWithRackChildren());
+
+    // Act
+    const resolved = resolveOperatorReserve(dtm);
+
+    // Assert: watt-hours, not the kWh the template authors — the conversion happens once here
+    // rather than in every consumer's floor arithmetic
+    assert.equal(
+      resolved.operator_reserve_topic,
+      "sites/{site_id}/devices/der_dispatch/measurements/operator_reserve/watt_hours",
+    );
+    assert.equal(resolved.site_capacity_wh, 8_000_000);
+  });
+
+  it("omits both fields when the deployment has no der_dispatch", () => {
+    // Arrange: storage present, but nothing publishes an operator reserve
+    const dtm = dtmWithRackChildren();
+
+    // Act / Assert: absent means no operator reserve, which is not an error
+    assert.deepEqual(resolveOperatorReserve(dtm), {});
+  });
+
+  it("omits both fields when no device carries capacity", () => {
+    // Arrange: a deployment with no storage at all
+    const dtm = withDerDispatch(dtmWithRackChildren());
+    dtm.templates_used.bess_rack!.capacity_kwh = null;
+
+    // Act / Assert: a reserve expressed as a fraction of nothing is meaningless, so neither
+    // field is emitted rather than emitting a zero a consumer would divide by
+    assert.deepEqual(resolveOperatorReserve(dtm), {});
   });
 });

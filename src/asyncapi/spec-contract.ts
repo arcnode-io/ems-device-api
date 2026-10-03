@@ -57,6 +57,8 @@ const DistributeResolvedFields = {
   active_power_topic: z.string().optional(),
   poi_active_power_topic: z.string().optional(),
   state_of_charge_floor_percent: z.number().optional(),
+  operator_reserve_topic: z.string().optional(),
+  site_capacity_wh: z.number().optional(),
 };
 
 /**

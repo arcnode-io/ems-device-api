@@ -50,6 +50,12 @@ export type StateOfChargeFloorResolution = {
   state_of_charge_floor_percent?: number;
 };
 
+/** Resolved operator-reserve fields for a `distribute` binding — see resolveOperatorReserve. */
+export type OperatorReserveResolution = {
+  operator_reserve_topic?: string;
+  site_capacity_wh?: number;
+};
+
 /** Resolved envelope-guard fields for a `distribute` binding — see resolveEnvelopeGuard. */
 export type EnvelopeGuardResolution = {
   power_min: number;
@@ -62,6 +68,8 @@ export type EnvelopeGuardResolution = {
 
 /** Well-known singleton DOE device id — same convention already hardcoded in bess_module's own import_headroom/export_headroom inputs[]. */
 const OPERATING_ENVELOPE_DEVICE_ID = "operating_envelope";
+const DER_DISPATCH_DEVICE_ID = "der_dispatch";
+const OPERATOR_RESERVE_MEASUREMENT = "operator_reserve";
 
 /**
  * The connection-point meter's template slug. Resolved by template rather than
@@ -539,4 +547,50 @@ export function resolveStateOfChargeFloor(
     );
   }
   return { state_of_charge_floor_percent: percent };
+}
+
+/**
+ * Where the operator's energy reserve is published, and the site capacity it is a fraction of.
+ *
+ * The reserve is a soft floor an operator sets on top of the supplier's own warranty-derived one;
+ * a consumer takes the greater of the two, so it can tighten what storage will spend but never
+ * relax it. It is site-wide energy, so a consumer converts it to a per-module percentage against
+ * total installed capacity — every rack then holds back the same fraction and keeps its
+ * proportional share, with no cross-module arithmetic.
+ *
+ * Capacity is emitted in watt-hours to match the channel, rather than the `capacity_kwh` the
+ * templates author it in: the conversion happens once here, where the unit is unambiguous, instead
+ * of in every consumer.
+ *
+ * Both fields are omitted together when there is nothing to resolve — no der_dispatch device, no
+ * `operator_reserve` on its template, or no capacity-bearing device. A deployment without storage
+ * simply has no operator reserve, which is not an error.
+ * @param dtm The self-describing deployment manifest
+ * @returns The topic and site capacity, or `{}` when either cannot be determined
+ */
+export function resolveOperatorReserve(
+  dtm: DtmType,
+): OperatorReserveResolution {
+  const dispatch = dtm.devices[DER_DISPATCH_DEVICE_ID];
+  const dispatchTpl = dispatch
+    ? dtm.templates_used[dispatch.template]
+    : undefined;
+  const reserve = dispatchTpl?.measurements[OPERATOR_RESERVE_MEASUREMENT];
+  if (!reserve) return {};
+
+  let totalKwh = 0;
+  for (const device of Object.values(dtm.devices)) {
+    const capacity = dtm.templates_used[device.template]?.capacity_kwh;
+    if (capacity) totalKwh += capacity;
+  }
+  if (totalKwh === 0) return {};
+
+  return {
+    operator_reserve_topic: buildTopic(
+      DER_DISPATCH_DEVICE_ID,
+      OPERATOR_RESERVE_MEASUREMENT,
+      reserve.unit,
+    ),
+    site_capacity_wh: totalKwh * 1000,
+  };
 }
