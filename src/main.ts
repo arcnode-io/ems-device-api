@@ -1,7 +1,8 @@
 import { NestFactory } from "@nestjs/core";
+import { NestExpressApplication } from "@nestjs/platform-express";
 import { Logger } from "@nestjs/common";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
-import { AppModuleWithDatabase } from "./app.module";
+import { AppModuleWithDatabase, MAX_BODY_SIZE } from "./app.module";
 import { loadConfig, setupLogger } from "./config";
 import { seedFromFile } from "./seed/seed_from_file";
 
@@ -15,7 +16,10 @@ async function bootstrap(): Promise<void> {
   const cfg = loadConfig();
   const logger = setupLogger(cfg.logLevel);
   logger.info(`Running with Config ${JSON.stringify(cfg)}`);
-  const app = await NestFactory.create(AppModuleWithDatabase);
+  const app = await NestFactory.create<NestExpressApplication>(
+    AppModuleWithDatabase,
+  );
+  app.useBodyParser("json", { limit: MAX_BODY_SIZE });
 
   await seedFromFile(
     app,

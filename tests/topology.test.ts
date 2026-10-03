@@ -3,12 +3,13 @@
 import "reflect-metadata";
 import { Test, TestingModule } from "@nestjs/testing";
 import { INestApplication } from "@nestjs/common";
+import { NestExpressApplication } from "@nestjs/platform-express";
 import { ConfigService } from "@nestjs/config";
 import * as client from "supertest";
 import { App } from "supertest/types";
 import * as assert from "assert";
 import { describe, test } from "node:test";
-import { AppModuleWithDatabase } from "../src/app.module";
+import { AppModuleWithDatabase, MAX_BODY_SIZE } from "../src/app.module";
 import { startPostgres } from "./fixtures/containers";
 import { TEMPLATE_CATALOG } from "../src/templates/templates.module";
 import type { DeviceTemplateType } from "../src/templates/template.schema";
@@ -123,6 +124,68 @@ describe("Topology", () => {
       );
       assert.strictEqual(body.buses.length, SAMPLE_DTM.buses.length);
       assert.strictEqual(body.buses[0]?.type, "dc");
+    } finally {
+      await app.close();
+      await pg.stop();
+    }
+  });
+
+  test("POST /topology accepts a DTM larger than the default body limit", async () => {
+    // Arrange — a real generated manifest is 173 KB at 234 devices, mostly
+    // embedded templates_used. Express defaults JSON bodies to 100 KB, so
+    // device-api rejected its own generator's output with 413. The stub
+    // templates here are tiny, so device count is what carries the size.
+    const devices: Record<string, unknown> = {
+      bess_001: {
+        device_id: "bess_001",
+        template: "bess_module_v1",
+        display_name: "BESS-001",
+      },
+    };
+    for (let index = 0; index < 900; index += 1) {
+      const id = `compute_${String(index).padStart(4, "0")}`;
+      devices[id] = {
+        device_id: id,
+        template: "compute_module_v1",
+        display_name: `COMPUTE-${String(index).padStart(4, "0")}`,
+        parent: "bess_001",
+      };
+    }
+    const bigDtm = { ...SAMPLE_DTM, devices, buses: [] };
+    const bytes = Buffer.byteLength(JSON.stringify(bigDtm));
+    assert.ok(
+      bytes > 100 * 1024,
+      `payload must exceed the 100 KB default to exercise the limit, got ${bytes}`,
+    );
+
+    const pg = await startPostgres();
+    process.env["DOCUMENT_URL"] = pg.url;
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModuleWithDatabase],
+    })
+      .overrideProvider(ConfigService)
+      .useValue({
+        get: <T = string>(_key: string, defaultValue?: T): T =>
+          defaultValue as T,
+      })
+      .overrideProvider(TEMPLATE_CATALOG)
+      .useValue(STUB_CATALOG)
+      .compile();
+    const app = moduleFixture.createNestApplication<NestExpressApplication>();
+    app.useBodyParser("json", { limit: MAX_BODY_SIZE });
+    await app.init();
+
+    try {
+      // Act
+      const post = await client(app.getHttpServer())
+        .post("/topology")
+        .send(bigDtm);
+
+      // Assert
+      assert.strictEqual(post.status, 201, JSON.stringify(post.body));
+      const get = await client(app.getHttpServer()).get("/topology");
+      const body = get.body as { devices: Record<string, unknown> };
+      assert.strictEqual(Object.keys(body.devices).length, 901);
     } finally {
       await app.close();
       await pg.stop();
