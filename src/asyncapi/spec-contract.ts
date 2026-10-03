@@ -125,9 +125,12 @@ function safeExtend(
 function buildResolvedSynthetic(
   syntheticVariant: AnyBindingVariant,
 ): z.ZodObject {
+  // Reason: both of these describe how to resolve a rollup. A resolved entry
+  // states the result -- `inputs` or `pairs` -- so carrying either one through
+  // is a leak, and the gateway rejects unknown fields outright.
   const resolvedShape = z
     .strictObject(syntheticVariant.shape as z.ZodRawShape)
-    .omit({ source_measurement: true });
+    .omit({ source_measurement: true, child_template: true });
   return safeExtend(resolvedShape as unknown as AnyBindingVariant, {
     ...ConnectionFields,
     ...ChannelMeta,
@@ -279,7 +282,14 @@ export const ProtocolSourceEntry = z.discriminatedUnion(
 const commandSourceVariants = Binding.options.map((variant) => {
   if (isDistribute(variant)) return buildResolvedDistribute(variant);
   if (isPowerCap(variant)) return buildResolvedPowerCap(variant);
-  return safeExtend(variant, {
+  // Reason: value_map turns a raw reading into an enum label, which is a
+  // measurement's concern. A command writes a value, so the key is never
+  // meaningful on this side and the gateway rejects it as an unknown field.
+  const commandShape =
+    "value_map" in variant.shape
+      ? z.strictObject(variant.shape as z.ZodRawShape).omit({ value_map: true })
+      : variant;
+  return safeExtend(commandShape as unknown as AnyBindingVariant, {
     ...ConnectionFields,
     ...CommandUnitAndIdentity,
   });

@@ -264,6 +264,9 @@ function dtmWithComputeHall(shedEnabled: boolean): DtmType {
           protocol: "redfish",
           uri: "/Systems/HGX/Processors/GPU_SXM_1/EnvironmentMetrics",
           json_pointer: "/PowerLimitWatts/SetPoint",
+          // Reason: the real wire form — edp-api emits this measurement-only
+          // field as explicit null on every command whose protocol has it.
+          value_map: null,
         },
       },
     },
@@ -419,6 +422,44 @@ function dtmWithComputeHall(shedEnabled: boolean): DtmType {
     },
   });
 }
+
+describe("resolved command entries drop value_map", () => {
+  it("omits the measurement-only field from a redfish command", () => {
+    // Reason: a command writes a value; value_map labels a reading. The gateway
+    // rejects unknown fields, so leaking it makes it refuse the spec and exit.
+    const spec = buildSpec(dtmWithComputeHall(false), "1.0.0") as unknown as {
+      "x-command-source": Record<string, Record<string, object>>;
+    };
+
+    const entry =
+      spec["x-command-source"].gpu_node_01?.["set_gpu_1_power_limit"] ?? {};
+
+    assert.ok("uri" in entry, "expected the redfish uri");
+    assert.ok(!("value_map" in entry), "value_map must be dropped");
+  });
+});
+
+describe("resolved synthetic entries drop the authored-only fields", () => {
+  it("carries neither child_template nor source_measurement", () => {
+    // Reason: `source_measurement` and `child_template` describe how to resolve
+    // a rollup; a resolved entry states the result as `inputs` or `pairs`. The
+    // gateway rejects unknown fields by design, so leaking either one makes it
+    // refuse the whole spec at startup and exit.
+    const spec = buildSpec(dtmWithUnbalance(), "1.0.0") as unknown as {
+      "x-protocol-source": Record<string, Record<string, object>>;
+    };
+
+    const entry =
+      spec["x-protocol-source"].relay_01?.["voltage_unbalance_pct"] ?? {};
+
+    assert.ok("inputs" in entry, "expected the resolved inputs");
+    assert.ok(!("child_template" in entry), "child_template must be dropped");
+    assert.ok(
+      !("source_measurement" in entry),
+      "source_measurement must be dropped",
+    );
+  });
+});
 
 describe("buildSpec compute hall", () => {
   it("rolls up only the children of child_template", () => {

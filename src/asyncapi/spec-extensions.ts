@@ -441,9 +441,14 @@ function collectCommandBindings(
       deviceId,
       dtm,
     );
+    // Reason: see the command contract — value_map is measurement-only, and
+    // edp-api emits it as explicit null on every command whose protocol has the
+    // field, so it has to be removed rather than left absent.
+    const commandBinding = { ...resolvedBinding } as Record<string, unknown>;
+    delete commandBinding["value_map"];
     out[name] = {
       ...connectionFor(conn, resolvedBinding.protocol),
-      ...resolvedBinding,
+      ...commandBinding,
       unit: cmd.unit,
       verb: cmd.verb,
       target: cmd.target,
@@ -481,12 +486,17 @@ function resolveDeviceIdPlaceholder(
     );
   });
   assertNoUnresolvedPlaceholders(inputs, deviceId);
-  // Reason: source_measurement is the unresolved form of the same binding — a
-  // resolved entry says `inputs` (or `pairs`) instead, and its contract omits
-  // the key outright. edp-api emits unset optionals as explicit null, so this
-  // has to be dropped rather than left to be absent.
-  const { source_measurement: unresolvedForm, ...resolved } = binding;
-  void unresolvedForm;
+  // Reason: source_measurement and child_template are the unresolved form of
+  // the same binding — a resolved entry says `inputs` (or `pairs`) instead, and
+  // its contract omits both keys. edp-api emits unset optionals as explicit
+  // null, so they have to be dropped rather than left to be absent.
+  const {
+    source_measurement: authoredSource,
+    child_template: authoredChildren,
+    ...resolved
+  } = binding;
+  void authoredSource;
+  void authoredChildren;
   return { ...resolved, inputs };
 }
 
