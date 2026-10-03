@@ -194,6 +194,12 @@ function dtmWithUnbalance(): DtmType {
               protocol: "synthetic",
               operation: "unbalance",
               inputs: ["phase_voltage_a", "phase_voltage_b", "phase_voltage_c"],
+              // Reason: the real wire form. edp-api emits every unset optional
+              // as explicit null, so an inputs-mode synthetic arrives carrying
+              // a null source_measurement — which must not survive into the
+              // resolved entry, whose contract omits that key.
+              source_measurement: null,
+              child_template: null,
             },
           },
         },

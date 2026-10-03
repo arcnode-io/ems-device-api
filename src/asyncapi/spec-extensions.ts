@@ -481,7 +481,13 @@ function resolveDeviceIdPlaceholder(
     );
   });
   assertNoUnresolvedPlaceholders(inputs, deviceId);
-  return { ...binding, inputs };
+  // Reason: source_measurement is the unresolved form of the same binding — a
+  // resolved entry says `inputs` (or `pairs`) instead, and its contract omits
+  // the key outright. edp-api emits unset optionals as explicit null, so this
+  // has to be dropped rather than left to be absent.
+  const { source_measurement: unresolvedForm, ...resolved } = binding;
+  void unresolvedForm;
+  return { ...resolved, inputs };
 }
 
 /**
