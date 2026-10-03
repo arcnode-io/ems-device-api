@@ -18,6 +18,12 @@ const RECONNECT_PERIOD_MS = 5000;
  * MQTT_DEVICE_API_PASSWORD) — the broker rejects anonymous since v1 auth.
  */
 const PASSWORD_ENV = "MQTT_DEVICE_API_PASSWORD";
+
+/**
+ * Holds the one broker connection this service publishes through, connecting on
+ * boot and reconnecting on a fixed period so a broker that is not up yet is an
+ * ordinary condition rather than a startup failure.
+ */
 @Injectable()
 export class MqttClientService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MqttClientService.name);
