@@ -19,18 +19,18 @@ const ModbusBinding = z.strictObject({
   // that disagree.
   data_type: z
     .enum(["int16", "uint16", "int32", "uint32", "float32", "int64"])
-    .optional(),
+    .nullish(),
   word_order: z.enum(["high_low", "low_high"]).default("high_low"),
   scale: z.number().default(1.0),
   offset: z.number().default(0.0),
   // SunSpec holds a measurement's exponent in its own register: value =
   // raw * 10^sf, sf read from here. Model 103's W at 40084 pairs with W_SF at
   // 40085. Absent for devices that state a fixed scale instead.
-  scale_factor_address: z.number().int().optional(),
+  scale_factor_address: z.number().int().nullish(),
   // Raw device value to our enum label, so the gateway can publish the label
   // rather than a code. Keyed by the raw reading as a string. Absent means the
   // measurement is numeric or boolean, not an enum.
-  value_map: z.record(z.string(), z.string()).optional(),
+  value_map: z.record(z.string(), z.string()).nullish(),
 });
 
 const Dnp3Binding = z.strictObject({
@@ -54,7 +54,7 @@ const Dnp3Binding = z.strictObject({
   // Raw device value to our enum label, so the gateway can publish the label
   // rather than a code. Keyed by the raw reading as a string. Absent means the
   // measurement is numeric or boolean, not an enum.
-  value_map: z.record(z.string(), z.string()).optional(),
+  value_map: z.record(z.string(), z.string()).nullish(),
 });
 
 const SnmpBinding = z.strictObject({
@@ -67,7 +67,7 @@ const SnmpBinding = z.strictObject({
   // Raw device value to our enum label, so the gateway can publish the label
   // rather than a code. Keyed by the raw reading as a string. Absent means the
   // measurement is numeric or boolean, not an enum.
-  value_map: z.record(z.string(), z.string()).optional(),
+  value_map: z.record(z.string(), z.string()).nullish(),
 });
 
 const RedfishBinding = z.strictObject({
@@ -75,7 +75,7 @@ const RedfishBinding = z.strictObject({
   // Raw device value to our enum label, so the gateway can publish the label
   // rather than a code. Keyed by the raw reading as a string. Absent means the
   // measurement is numeric or boolean, not an enum.
-  value_map: z.record(z.string(), z.string()).optional(),
+  value_map: z.record(z.string(), z.string()).nullish(),
   // Vendor OEM properties report in their own units — NVIDIA's
   // OperatingSpeedMHz is MHz where the unit vocabulary is hertz only — so the
   // raw value needs scaling to the unit the measurement declares.
@@ -148,14 +148,14 @@ const SyntheticBinding = z
       // operation rather than a mean plus a max.
       "unbalance",
     ]),
-    inputs: z.array(z.string()).optional(),
-    source_measurement: z.string().optional(),
+    inputs: z.array(z.string()).nullish(),
+    source_measurement: z.string().nullish(),
     // Which children a source_measurement rolls up. A module's children are
     // heterogeneous — a compute_module parents pdu, gpu_node, cdu and
     // network_switch — so the subset carrying the measurement is declared here
     // rather than inferred from whichever children happen to have it. Absent
     // means every child, which is correct for a homogeneous module.
-    child_template: z.string().optional(),
+    child_template: z.string().nullish(),
   })
   .refine(
     (binding) =>
@@ -215,9 +215,9 @@ const DistributeBinding = z
   .strictObject({
     protocol: z.literal("distribute"),
     allocation_policy: z.enum(["equal_split", "soc_weighted"]),
-    ramp_rate_per_sec: z.number().optional(),
-    hysteresis_margin: z.number().optional(),
-    hysteresis_dwell_secs: z.number().optional(),
+    ramp_rate_per_sec: z.number().nullish(),
+    hysteresis_margin: z.number().nullish(),
+    hysteresis_dwell_secs: z.number().nullish(),
   })
   .refine(
     (binding) => {
@@ -225,7 +225,7 @@ const DistributeBinding = z
         binding.ramp_rate_per_sec,
         binding.hysteresis_margin,
         binding.hysteresis_dwell_secs,
-      ].filter((field) => field !== undefined).length;
+      ].filter((field) => field != null).length;
       return present === 0 || present === 3;
     },
     {

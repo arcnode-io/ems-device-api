@@ -384,7 +384,7 @@ function collectCommandBindings(
         cmd.target,
       );
       const envelopeGuard =
-        cmd.binding.ramp_rate_per_sec !== undefined
+        cmd.binding.ramp_rate_per_sec != null
           ? resolveEnvelopeGuard(dtm, deviceId, cmd.target, children)
           : {};
       const socFloor = resolveStateOfChargeFloor(dtm, deviceId);

@@ -413,3 +413,93 @@ describe("edp-api mirror — value_map on every enum-capable binding", () => {
     assert.equal(numeric.value_map, undefined);
   });
 });
+
+describe("absent optionals arrive as explicit null", () => {
+  // Reason: edp-api is the producer and it is Pydantic — `model_dump()` emits
+  // None for every unset optional, so on the wire an absent field is `null`,
+  // not a missing key. A binding schema that only accepts the key as missing
+  // rejects every template edp-api's own DTM generator emits. These four are
+  // verbatim bindings out of a generated DTM.
+
+  it("accepts a dnp3_tcp binding with null variation and value_map", () => {
+    // Arrange
+    const emitted = {
+      protocol: "dnp3_tcp",
+      point_index: 0,
+      point_type: "analog_input",
+      variation: null,
+      scale: 1.0,
+      value_map: null,
+    };
+
+    // Act
+    const result = Binding.parse(emitted);
+
+    // Assert
+    if (result.protocol !== "dnp3_tcp") throw new Error("expected dnp3_tcp");
+    assert.equal(result.value_map, null);
+  });
+
+  it("accepts a modbus_tcp binding with null scale_factor_address", () => {
+    // Arrange
+    const emitted = {
+      protocol: "modbus_tcp",
+      function_code: 3,
+      address: 3204,
+      data_type: "int64",
+      word_order: "high_low",
+      scale: 1.0,
+      offset: 0.0,
+      scale_factor_address: null,
+      value_map: null,
+    };
+
+    // Act
+    const result = Binding.parse(emitted);
+
+    // Assert
+    if (result.protocol !== "modbus_tcp")
+      throw new Error("expected modbus_tcp");
+    assert.equal(result.scale_factor_address, null);
+  });
+
+  it("accepts a source_measurement synthetic whose inputs is null", () => {
+    // Arrange
+    const emitted = {
+      protocol: "synthetic",
+      operation: "sum",
+      inputs: null,
+      source_measurement: "input_power",
+      child_template: "pdu",
+    };
+
+    // Act
+    const result = Binding.parse(emitted);
+
+    // Assert: null has to stay falsy for the exactly-one-of refine to hold
+    if (result.protocol !== "synthetic") throw new Error("expected synthetic");
+    assert.equal(result.source_measurement, "input_power");
+  });
+
+  it("accepts an inputs synthetic whose source_measurement and child_template are null", () => {
+    // Arrange
+    const emitted = {
+      protocol: "synthetic",
+      operation: "unbalance",
+      inputs: [
+        "sites/{site_id}/devices/{device_id}/measurements/phase_voltage_a/volts",
+        "sites/{site_id}/devices/{device_id}/measurements/phase_voltage_b/volts",
+        "sites/{site_id}/devices/{device_id}/measurements/phase_voltage_c/volts",
+      ],
+      source_measurement: null,
+      child_template: null,
+    };
+
+    // Act
+    const result = Binding.parse(emitted);
+
+    // Assert
+    if (result.protocol !== "synthetic") throw new Error("expected synthetic");
+    assert.equal(result.inputs?.length, 3);
+  });
+});

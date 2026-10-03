@@ -178,9 +178,9 @@ function buildResolvedDistribute(
         entry.poi_active_power_topic,
       ];
       const present = envelopeGuardFields.filter(
-        (field) => field !== undefined,
+        (field) => field != null,
       ).length;
-      const expected = entry.ramp_rate_per_sec !== undefined ? 6 : 0;
+      const expected = entry.ramp_rate_per_sec != null ? 6 : 0;
       return present === expected;
     },
     {
@@ -260,7 +260,7 @@ function buildResolvedPowerCap(
         entry.hysteresis_margin,
         entry.hysteresis_dwell_secs,
       ];
-      const present = guardFields.filter((field) => field !== undefined).length;
+      const present = guardFields.filter((field) => field != null).length;
       return present === 0 || present === 6;
     },
     {

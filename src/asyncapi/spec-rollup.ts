@@ -83,14 +83,13 @@ const POI_METER_TEMPLATE = "poi_meter";
 export function resolveChildren(
   dtm: DtmType,
   deviceId: string,
-  childTemplateSlug?: string,
+  childTemplateSlug?: string | null,
 ): DeviceType[] {
   return Object.values(dtm.devices)
     .filter((device) => device.parent === deviceId)
     .filter(
       (device) =>
-        childTemplateSlug === undefined ||
-        device.template === childTemplateSlug,
+        childTemplateSlug == null || device.template === childTemplateSlug,
     )
     .sort((deviceA, deviceB) =>
       deviceA.device_id.localeCompare(deviceB.device_id),
@@ -154,13 +153,13 @@ export function resolveSourceMeasurement(
   deviceId: string,
   sourceMeasurement: string,
   operation: string,
-  childTemplateSlug?: string,
+  childTemplateSlug?: string | null,
 ): { inputs: string[] } | { pairs: WeightedPairType[] } {
   const children = resolveChildren(dtm, deviceId, childTemplateSlug);
   if (children.length === 0) {
     throw new Error(
       `device ${deviceId}: source_measurement "${sourceMeasurement}" rolls up ` +
-        `${childTemplateSlug === undefined ? "its children" : `children of template "${childTemplateSlug}"`}, but none were found`,
+        `${childTemplateSlug == null ? "its children" : `children of template "${childTemplateSlug}"`}, but none were found`,
     );
   }
 

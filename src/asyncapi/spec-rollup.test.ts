@@ -196,6 +196,21 @@ describe("resolveChildren", () => {
     const children = resolveChildren(dtm, "bess_rack_a");
     assert.deepEqual(children, []);
   });
+
+  it("treats a null child_template as every child", () => {
+    // Reason: edp-api emits absent optionals as explicit null, so a synthetic
+    // binding that rolls up every child arrives carrying child_template: null.
+    // Reading that null as a slug matches no device, and the rollup then throws
+    // "none were found" for a binding that is perfectly well formed.
+    const dtm = dtmWithRackChildren();
+
+    const children = resolveChildren(dtm, "bess_module_1", null);
+
+    assert.deepEqual(
+      children.map((child) => child.device_id),
+      ["bess_rack_a", "bess_rack_b"],
+    );
+  });
 });
 
 describe("resolveSourceMeasurement", () => {
