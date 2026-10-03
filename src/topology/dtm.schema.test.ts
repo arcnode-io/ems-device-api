@@ -405,6 +405,26 @@ describe("Dtm", () => {
     assert.equal(result.sizing_ref, "sizing-001");
   });
 
+  it("accepts a deployment_uuid carrying no RFC version nibble", () => {
+    // Arrange: edp-api types this field as Python uuid.UUID, which accepts any
+    // 128-bit value, and its DTM generator emits an NCS-variant id with no
+    // version. Zod's .uuid() enforces RFC 9562 versions, so rejecting this
+    // would leave device-api unable to seed a DTM edp-api itself produced.
+    const input = {
+      ...minimalDtm,
+      deployment_uuid: "00000000-0000-0000-0000-00000000d3e0",
+    };
+
+    // Act
+    const result = ok(Dtm, input);
+
+    // Assert
+    assert.equal(
+      result.deployment_uuid,
+      "00000000-0000-0000-0000-00000000d3e0",
+    );
+  });
+
   it("rejects invalid UUID for deployment_uuid", () => {
     const msg = fail(Dtm, {
       ...minimalDtm,

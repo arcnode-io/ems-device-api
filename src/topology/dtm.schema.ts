@@ -13,6 +13,13 @@ import { DeviceTemplate, Measurement } from "../templates/template.schema";
 // Slug pattern — ADR-002 §9
 const SLUG_RE = /^[a-z][a-z0-9_]{0,62}[a-z0-9]$/;
 
+// edp-api types deployment_uuid as Python uuid.UUID, which accepts any 128-bit
+// value — including the NCS-variant ids with no version nibble that its DTM
+// generator emits. Zod's .uuid() enforces RFC 9562 versions and rejects those,
+// so mirroring Pydantic means validating the 8-4-4-4-12 shape, not the version.
+const UUID_SHAPE_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 // Sentinel used in DTM YAML for fields the utility assigns at commissioning.
 export const PROVISIONED_AT_COMMISSIONING = "PROVISIONED_AT_COMMISSIONING";
 
@@ -84,7 +91,9 @@ export type BusType = z.infer<typeof Bus>;
 
 export const Dtm = z
   .strictObject({
-    deployment_uuid: z.string().uuid(),
+    deployment_uuid: z
+      .string()
+      .regex(UUID_SHAPE_RE, "deployment_uuid must be a uuid"),
     sizing_ref: z.string().nullish(),
     sizing_params: SizingParams,
     devices: z.record(z.string(), Device),
