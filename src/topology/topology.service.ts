@@ -1,4 +1,5 @@
 import {
+  OnModuleInit,
   BadRequestException,
   Inject,
   Injectable,
@@ -40,7 +41,7 @@ function nextMonotonicVersion(prev: string | null): string {
  * MVP uses unconditional patch bumps as the change signal.
  */
 @Injectable()
-export class TopologyService {
+export class TopologyService implements OnModuleInit {
   private readonly logger = new Logger(TopologyService.name);
 
   // In-memory SLD SVG cache keyed by DTM version. Lazy: populated on the
@@ -64,6 +65,31 @@ export class TopologyService {
     private readonly mqtt: MqttClientService,
     private readonly sldRenderer: SldSvgRendererService,
   ) {}
+
+  /**
+   * Announces the current topology on every broker connection.
+   *
+   * Reason: the beacon is the only thing that makes a consumer re-read the spec, and it was sent
+   * only when a DTM was submitted. But the spec's *content* also changes when this service is
+   * deployed with a new generator — and a deploy against an already-populated database submits
+   * nothing, so no beacon fired and an already-running consumer kept serving itself a spec built
+   * by the previous image. Announcing on connect covers that, and covers a broker restart losing
+   * the session as well. A beacon when only the generator changed is still true: it means re-read
+   * the spec, and a consumer that fully reconciles pays almost nothing for a spurious one.
+   */
+  onModuleInit(): void {
+    this.mqtt.onConnected(() => {
+      void this.announceCurrentVersion();
+    });
+  }
+
+  /** Publishes the persisted version, or nothing at all when no topology exists yet. */
+  private async announceCurrentVersion(): Promise<void> {
+    const row = await this.getLatestRow();
+    if (!row) return;
+    this.logger.log(`announcing topology v${row.version} on broker connect`);
+    this.mqtt.publishTopologyChanged(row.version);
+  }
 
   /**
    * Throws BadRequestException if any slug in dtm.templates_used is not in

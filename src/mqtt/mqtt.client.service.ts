@@ -28,6 +28,7 @@ const PASSWORD_ENV = "MQTT_DEVICE_API_PASSWORD";
 export class MqttClientService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(MqttClientService.name);
   private client?: MqttClient;
+  private readonly onConnectListeners: (() => void)[] = [];
 
   /**
    * Wires NestJS ConfigService for the broker URL.
@@ -52,7 +53,10 @@ export class MqttClientService implements OnModuleInit, OnModuleDestroy {
       password,
       reconnectPeriod: RECONNECT_PERIOD_MS,
     });
-    this.client.on("connect", () => this.logger.log(`mqtt connected ${url}`));
+    this.client.on("connect", () => {
+      this.logger.log(`mqtt connected ${url}`);
+      for (const listener of this.onConnectListeners) listener();
+    });
     this.client.on("error", (err) =>
       this.logger.warn(`mqtt error: ${err.message}`),
     );
@@ -65,6 +69,21 @@ export class MqttClientService implements OnModuleInit, OnModuleDestroy {
     if (this.client !== undefined) {
       await this.client.endAsync();
     }
+  }
+
+  /**
+   * Registers a callback to run on every broker (re)connection, and immediately if already
+   * connected.
+   *
+   * Reason: a publish issued before the socket is up is dropped with a warning, and connection is
+   * async — so anything that must be announced at startup has to wait for this rather than fire
+   * during module init. It runs on reconnection too, since a broker that dropped its session
+   * dropped whatever we had told it.
+   * @param listener Called after each successful connect
+   */
+  onConnected(listener: () => void): void {
+    this.onConnectListeners.push(listener);
+    if (this.client?.connected === true) listener();
   }
 
   /**

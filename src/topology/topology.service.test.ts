@@ -340,3 +340,57 @@ describe("TopologyService.getLatestRow", () => {
     assert.equal(row, null);
   });
 });
+
+describe("TopologyService announces on broker connect", () => {
+  it("publishes the persisted version so a consumer re-reads the spec", async () => {
+    // Arrange: the beacon used to fire only when a DTM was submitted, so deploying a new
+    // generator against an already-populated database announced nothing and a running consumer
+    // kept serving itself a spec built by the previous image.
+    const announced: string[] = [];
+    let registered: (() => void) | undefined;
+    const mqtt = {
+      onConnected: (listener: () => void) => {
+        registered = listener;
+      },
+      publishTopologyChanged: (version: string) => announced.push(version),
+    } as unknown as MqttClientService;
+    const repo = {
+      findOne: () => Promise.resolve({ version: "1.0.8" } as Topology),
+    } as unknown as Repository<Topology>;
+    const service = new TopologyService(repo, {}, mqtt, stubRenderer);
+
+    // Act
+    service.onModuleInit();
+    assert.ok(registered, "expected a connect listener to be registered");
+    registered();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    // Assert
+    assert.deepEqual(announced, ["1.0.8"]);
+  });
+
+  it("announces nothing when no topology has ever been submitted", async () => {
+    // Arrange: a fresh deployment has nothing to announce, and a beacon naming no version would
+    // send a consumer to fetch a spec that does not exist yet
+    const announced: string[] = [];
+    let registered: (() => void) | undefined;
+    const mqtt = {
+      onConnected: (listener: () => void) => {
+        registered = listener;
+      },
+      publishTopologyChanged: (version: string) => announced.push(version),
+    } as unknown as MqttClientService;
+    const repo = {
+      findOne: () => Promise.resolve(null),
+    } as unknown as Repository<Topology>;
+    const service = new TopologyService(repo, {}, mqtt, stubRenderer);
+
+    // Act
+    service.onModuleInit();
+    registered!();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    // Assert
+    assert.deepEqual(announced, []);
+  });
+});
