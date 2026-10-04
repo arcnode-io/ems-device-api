@@ -439,6 +439,44 @@ describe("resolved command entries drop value_map", () => {
   });
 });
 
+describe("spec version identifies the generator, not just the topology", () => {
+  it("carries the generator version alongside the topology version", () => {
+    // Reason: info.version came from the topology version alone, so deploying new generator code
+    // changed the spec's *content* while its version stayed the same. No topology beacon fires for
+    // a code deploy, so a consumer that reconciles on version never re-fetched and the new fields
+    // silently did nothing. Observed against a real gateway: "spec re-fetched version=1.0.6" then
+    // "subscriptions follow topology added=0 removed=0".
+    const spec = buildSpec(dtmWithUnbalance(), "1.0.8") as unknown as {
+      info: { version: string };
+      "x-generator-version": string;
+    };
+
+    // Assert: the topology version is still legible, and the generator is now part of the identity
+    assert.ok(
+      spec.info.version.startsWith("1.0.8+"),
+      `expected the topology version to lead, got ${spec.info.version}`,
+    );
+    assert.ok(
+      spec.info.version.length > "1.0.8+".length,
+      "expected a generator component after the +",
+    );
+  });
+
+  it("also exposes the generator version on its own, for a consumer that wants it unparsed", () => {
+    // Arrange / Act
+    const spec = buildSpec(dtmWithUnbalance(), "1.0.8") as unknown as {
+      info: { version: string };
+      "x-generator-version": string;
+    };
+
+    // Assert
+    assert.ok(
+      spec.info.version.endsWith(spec["x-generator-version"]),
+      "the version suffix and the standalone field must be the same value",
+    );
+  });
+});
+
 describe("resolved synthetic entries drop the authored-only fields", () => {
   it("carries neither child_template nor source_measurement", () => {
     // Reason: `source_measurement` and `child_template` describe how to resolve

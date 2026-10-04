@@ -33,6 +33,27 @@ import {
 } from "./spec-contract";
 
 const SPEC_VERSION = "3.0.0";
+
+/**
+ * Identifies the generator that produced this spec, so a consumer can tell two specs apart when
+ * the topology behind them is identical.
+ *
+ * Bump it whenever the *generated shape* changes — a new resolved field, a renamed one, a changed
+ * payload. It is not a build number: a deploy that produces an identical spec should not make
+ * every consumer reconcile.
+ *
+ * Reason: `info.version` otherwise came from the topology version alone, which changes only when a
+ * DTM is submitted. Deploying new generator code therefore changed the spec's content while its
+ * version stayed put, no `system/topology_changed` beacon fired, and a consumer that reconciles on
+ * version never re-fetched — so new resolver fields were live in the code and silently absent from
+ * what the gateway actually held.
+ *
+ * Carried as semver build metadata, which reads correctly to a human and changes the string for
+ * anyone comparing versions for equality. Note that semver defines build metadata as ignored for
+ * precedence*, so a consumer must compare these for difference rather than ordering — which is
+ * also why the value is published on its own as `x-generator-version`.
+ */
+const SPEC_GENERATOR_VERSION = "gen.1";
 const MQTT_BINDING_VERSION = "0.2.0";
 
 /** Default MQTT broker server entry. Customer overrides via cfg/secrets. */
@@ -68,6 +89,7 @@ interface AsyncApi3Spec {
     messages: Record<string, unknown>;
     schemas: Record<string, unknown>;
   };
+  "x-generator-version": string;
   "x-protocol-source": ProtocolSourceMap;
   "x-command-source": CommandSourceMap;
   "x-enum-values": EnumValuesMap;
@@ -80,7 +102,9 @@ interface AsyncApi3Spec {
  *            `templates_used` map provides every template referenced by
  *            `devices`, removing the need for a separate catalog lookup.
  * @param version Semver assigned to this DTM by TopologyService.save
- *            per ADR-002 §10. Embedded as info.version.
+ *            per ADR-002 §10. Embedded as info.version, suffixed with
+ *            SPEC_GENERATOR_VERSION so a consumer can tell two specs apart when
+ *            the topology behind them is identical.
  * @returns The AsyncAPI 3.0.0 spec ready for JSON / YAML serialization
  */
 export function buildSpec(dtm: DtmType, version: string): AsyncApi3Spec {
@@ -89,7 +113,7 @@ export function buildSpec(dtm: DtmType, version: string): AsyncApi3Spec {
     asyncapi: SPEC_VERSION,
     info: {
       title: `ARCNODE EMS — ${dtm.deployment_uuid}`,
-      version,
+      version: `${version}+${SPEC_GENERATOR_VERSION}`,
       description: `AsyncAPI v3 contract generated from DTM ${dtm.deployment_uuid}.`,
     },
     servers: DEFAULT_SERVERS,
@@ -99,6 +123,7 @@ export function buildSpec(dtm: DtmType, version: string): AsyncApi3Spec {
     // Self-validated against the real contract (spec-contract.ts) rather
     // than trusted blindly — catches drift between the resolvers and the
     // published schema at generation time, not just in tests.
+    "x-generator-version": SPEC_GENERATOR_VERSION,
     "x-protocol-source": validateProtocolSourceMap(buildProtocolSourceMap(dtm)),
     "x-command-source": validateCommandSourceMap(buildCommandSourceMap(dtm)),
     "x-enum-values": buildEnumValuesMap(templates),

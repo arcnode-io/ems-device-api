@@ -257,7 +257,7 @@ describe("Topology", () => {
     }
   });
 
-  test("POST /topology bumps version monotonically; GET /asyncapi reflects info.version", async () => {
+  test("POST /topology bumps version monotonically; GET /asyncapi leads info.version with it", async () => {
     // Arrange — fresh Postgres
     const pg = await startPostgres();
     process.env["DOCUMENT_URL"] = pg.url;
@@ -286,7 +286,10 @@ describe("Topology", () => {
       let asyncapi = (await http.get("/asyncapi").expect(200)).body as {
         info: { version: string };
       };
-      assert.equal(asyncapi.info.version, "1.0.0");
+      // Reason: the topology version leads and the generator suffix follows, so a consumer can
+      // tell two specs apart when the topology behind them is identical — a generator deploy
+      // changes the spec's content without a DTM ever being submitted.
+      assert.match(asyncapi.info.version, /^1\.0\.0\+/);
 
       // Act 2 — same DTM → bumps to 1.0.1 (monotonic, no diff)
       const post2 = await http.post("/topology").send(SAMPLE_DTM);
@@ -294,7 +297,7 @@ describe("Topology", () => {
       asyncapi = (await http.get("/asyncapi").expect(200)).body as {
         info: { version: string };
       };
-      assert.equal(asyncapi.info.version, "1.0.1");
+      assert.match(asyncapi.info.version, /^1\.0\.1\+/);
 
       // Act 3 — change display_name → bumps to 1.0.2
       // Reason: cast through unknown to mutate display_name without noUncheckedIndexedAccess noise.
@@ -307,7 +310,7 @@ describe("Topology", () => {
       asyncapi = (await http.get("/asyncapi").expect(200)).body as {
         info: { version: string };
       };
-      assert.equal(asyncapi.info.version, "1.0.2");
+      assert.match(asyncapi.info.version, /^1\.0\.2\+/);
     } finally {
       await app.close();
       await pg.stop();
