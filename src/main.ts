@@ -25,6 +25,7 @@ async function bootstrap(): Promise<void> {
     app,
     process.env["BOOT_DTM_PATH"] ?? null,
     new Logger("bootstrap"),
+    process.env["BOOT_SLD_PATH"] ?? null,
   );
 
   const config = new DocumentBuilder()

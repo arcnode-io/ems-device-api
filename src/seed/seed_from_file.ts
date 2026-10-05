@@ -7,6 +7,10 @@
  * path set + table populated but the row no longer builds a spec → re-seed
  * path null → graceful empty start
  * Any read/parse/validate/catalog error when path set → fatal (caller propagates)
+ *
+ * sldPath set → the SVG is stored on the row unless it already has one, so a
+ *   deployment can ship a pre-rendered diagram and never run edp-api. Unset leaves
+ *   the lazy render in place.
  */
 
 import { Logger } from "@nestjs/common";
@@ -55,11 +59,13 @@ function needsReseed(dtm: DtmType, logger: Logger): boolean {
  * @param app Assembled NestJS application context
  * @param path filesystem path to dtm.json, or null to skip read
  * @param logger NestJS Logger instance
+ * @param sldPath filesystem path to a pre-rendered SLD SVG, or null to render on demand
  */
 export async function seedFromFile(
   app: INestApplicationContext,
   path: string | null,
   logger: Logger,
+  sldPath: string | null = null,
 ): Promise<void> {
   if (path === null) {
     logger.log("no boot_dtm_path configured; starting empty");
@@ -77,6 +83,7 @@ export async function seedFromFile(
   const stale = existing !== null && needsReseed(existing, logger);
   if (existing !== null && !stale) {
     logger.log(`topology already populated; skipping seed from ${path}`);
+    await seedSld(app, sldPath, logger);
     return;
   }
   if (stale) {
@@ -86,4 +93,29 @@ export async function seedFromFile(
   }
   await service.save(dtm);
   logger.log(`seeded topology from ${path}`);
+  await seedSld(app, sldPath, logger);
+}
+
+/**
+ * Store a pre-rendered SLD on the latest row when one is mounted.
+ *
+ * Runs on the already-populated path too, so a deployment that gains a diagram
+ * file picks it up on its next boot rather than only on a fresh seed.
+ * @param app Assembled NestJS application context
+ * @param sldPath filesystem path to an SVG, or null to skip
+ * @param logger NestJS Logger instance
+ */
+async function seedSld(
+  app: INestApplicationContext,
+  sldPath: string | null,
+  logger: Logger,
+): Promise<void> {
+  if (sldPath === null) return;
+  const svg = await fs.readFile(sldPath);
+  const stored = await app.get(TopologyService).storeSldIfAbsent(svg);
+  logger.log(
+    stored
+      ? `seeded SLD from ${sldPath}`
+      : `topology already has an SLD; left it alone`,
+  );
 }

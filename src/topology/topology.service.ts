@@ -165,6 +165,28 @@ export class TopologyService implements OnModuleInit {
   }
 
   /**
+   * Store an SVG authored offline on the latest row, unless it already has one.
+   *
+   * Lets a deployment ship a pre-rendered diagram beside its DTM and never run
+   * edp-api at all — the SVG is a one-time artefact of a topology, so authoring it
+   * when the topology is authored keeps the engineering tool out of the runtime.
+   *
+   * Refuses to overwrite: a row with a diagram has one that matches its own DTM,
+   * and a redeploy carrying a stale file must not replace it.
+   * @param svg SVG bytes rendered for this row's DTM
+   * @returns true if the bytes were stored, false if a diagram was already present
+   *   or no topology exists yet
+   */
+  async storeSldIfAbsent(svg: Buffer): Promise<boolean> {
+    const row = await this.getLatestRow();
+    if (row === null) return false;
+    if (row.sldSvg !== null && row.sldSvg !== undefined) return false;
+    row.sldSvg = svg;
+    await this.repo.save(row);
+    return true;
+  }
+
+  /**
    * Return the SLD HMI SVG bytes for the latest DTM, rendering through edp-api
    * only when this row has none stored yet.
    *

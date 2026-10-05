@@ -195,6 +195,44 @@ describe("TopologyService.getLatestSld — lazy render + cache", () => {
     return { dtm: {}, version, id: 1, receivedAt: new Date(), sldSvg: null };
   }
 
+  it("stores a seeded SVG on a row that has none", async () => {
+    // Arrange — a row whose SVG was never rendered, and bytes authored offline
+    const theRow = row("1.0.0");
+    const repo = {
+      findOne: mock.fn(() => Promise.resolve(theRow)),
+      save: mock.fn((entity: unknown) => Promise.resolve(entity)),
+    };
+    const svc = new TopologyService(repo as never, {}, stubMqtt, stubRenderer);
+
+    // Act
+    const stored = await svc.storeSldIfAbsent(Buffer.from("<svg id=seeded/>"));
+
+    // Assert
+    assert.equal(stored, true);
+    assert.equal(theRow.sldSvg?.toString("utf8"), "<svg id=seeded/>");
+  });
+
+  it("leaves an existing SVG alone when asked to seed one", async () => {
+    // Arrange — the row already has bytes; seeding must not clobber them, so a
+    // redeploy with a stale file beside it cannot replace a good diagram
+    const theRow = {
+      ...row("1.0.0"),
+      sldSvg: Buffer.from("<svg id=existing/>"),
+    };
+    const repo = {
+      findOne: mock.fn(() => Promise.resolve(theRow)),
+      save: mock.fn((entity: unknown) => Promise.resolve(entity)),
+    };
+    const svc = new TopologyService(repo as never, {}, stubMqtt, stubRenderer);
+
+    // Act
+    const stored = await svc.storeSldIfAbsent(Buffer.from("<svg id=seeded/>"));
+
+    // Assert
+    assert.equal(stored, false);
+    assert.equal(theRow.sldSvg.toString("utf8"), "<svg id=existing/>");
+  });
+
   it("serves a persisted SVG without calling edp-api, so a restart needs no renderer", async () => {
     // Arrange — the row already carries bytes an earlier render stored. This is the
     // shipped-EMS case: edp-api is an authoring tool the customer never receives, so a

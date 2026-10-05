@@ -90,7 +90,49 @@ async function writeDtmFile(body: unknown): Promise<string> {
   return file;
 }
 
+/**
+ * Write SVG bytes to a temp file.
+ * @param svg bytes to write
+ * @returns the file path
+ */
+async function writeSldFile(svg: string): Promise<string> {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), "sld-"));
+  const file = path.join(dir, "sld.svg");
+  await fs.writeFile(file, svg, "utf8");
+  return file;
+}
+
 describe("seedFromFile integration", () => {
+  test("a seeded SLD is served without edp-api ever being reachable", async () => {
+    // Arrange — edp-api authors the diagram offline and is not part of the runtime,
+    // so a deployment that ships one must never call it. Any call here is a failure.
+    const pg = await startPostgres(undefined, { dbname: "postgres" });
+    process.env["DOCUMENT_URL"] = pg.url;
+    const file = await writeDtmFile(SAMPLE_DTM);
+    const sld = await writeSldFile('<svg id="authored-offline"/>');
+    const app = await bootstrap();
+    try {
+      // Act
+      await seedFromFile(app, file, new Logger("seed-test"), sld);
+
+      // Assert — the bytes come back from the database, with the renderer replaced
+      // by one that throws if touched
+      const service = app.get(TopologyService);
+      Object.defineProperty(service, "sldRenderer", {
+        value: {
+          render: () => {
+            throw new Error("edp-api must not be called for a seeded SLD");
+          },
+        },
+      });
+      const served = await service.getLatestSld();
+      assert.equal(served?.toString("utf8"), '<svg id="authored-offline"/>');
+    } finally {
+      await app.close();
+      await pg.stop();
+    }
+  });
+
   test("empty DB + dtm.json present → topology seeded", async () => {
     // Arrange
     const pg = await startPostgres(undefined, { dbname: "postgres" });
