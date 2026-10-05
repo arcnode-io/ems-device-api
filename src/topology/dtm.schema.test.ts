@@ -138,6 +138,39 @@ describe("SizingParams", () => {
     assert.equal(result.bess_reserve_floor_mwh, 0);
   });
 
+  it("defaults the readiness figures to 0, so a site that is not flexible asks for no charging", () => {
+    // Arrange / Act — every DTM emitted before these fields existed
+    const result = ok(SizingParams, minimalSizingParams);
+
+    // Assert: zero readiness means the gateway charges to nothing, which is the behaviour
+    // every deployment has today. These must default rather than be required, or a persisted
+    // DTM stops validating the moment this ships.
+    assert.equal(result.bess_readiness_mwh, 0);
+    assert.equal(result.bess_recharge_mw, 0);
+  });
+
+  it("accepts the readiness figures edp-api derives from the contracted obligation", () => {
+    // Arrange: the demo at the ERCOT heavy preset — e_reserve + e_flex, and the recharge rate
+    // that refills the flex energy inside the minimum interval between events
+    const input = {
+      ...minimalSizingParams,
+      bess_reserve_floor_mwh: 2.3578947368421055,
+      bess_readiness_mwh: 7.074,
+      bess_recharge_mw: 0.248,
+    };
+
+    // Act
+    const result = ok(SizingParams, input);
+
+    // Assert
+    assert.equal(result.bess_readiness_mwh, 7.074);
+    assert.equal(result.bess_recharge_mw, 0.248);
+    // Reason: readiness is the floor plus the flex energy, so it can never be below the floor.
+    // Asserted here because the two arrive as independent numbers and nothing downstream
+    // re-derives the relationship.
+    assert.ok(result.bess_readiness_mwh >= result.bess_reserve_floor_mwh);
+  });
+
   it("accepts explicit ride_through_hours and bess_reserve_floor_mwh", () => {
     // Arrange
     const input = {

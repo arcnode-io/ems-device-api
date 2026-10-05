@@ -47,6 +47,16 @@ export const SizingParams = z.strictObject({
   // ConfiguratorPayload.ride_through_hours / dtm_primitives.SizingParams.
   ride_through_hours: z.number().default(0),
   bess_reserve_floor_mwh: z.number().default(0),
+  // Energy the site wants held ready to answer the next operating envelope, and the grid-charge
+  // rate that refills it between events. edp-api derives both from the contracted flex
+  // obligation — readiness is the ride-through floor plus the curtailment-response energy, so it
+  // is never below bess_reserve_floor_mwh, and equals it on a site with no flex obligation.
+  //
+  // Defaulted, not required: every DTM emitted before these existed must keep validating, and a
+  // readiness of zero means the site charges to nothing, which is the behaviour every
+  // deployment has today. Shipping this must not start a site importing.
+  bess_readiness_mwh: z.number().default(0),
+  bess_recharge_mw: z.number().default(0),
   // Whether this site lets the EMS cap compute on its own when the operating
   // envelope binds and storage cannot cover it. Per-site because throttling a
   // tenant's workload needs standing the EMS does not have by default, so the
