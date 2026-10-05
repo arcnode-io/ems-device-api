@@ -56,6 +56,12 @@ export type OperatorReserveResolution = {
   site_capacity_wh?: number;
 };
 
+/** Resolved readiness fields for a `distribute` binding — see resolveReadiness. */
+export type ReadinessResolution = {
+  readiness_soc_percent?: number;
+  recharge_power_w?: number;
+};
+
 /** Resolved envelope-guard fields for a `distribute` binding — see resolveEnvelopeGuard. */
 export type EnvelopeGuardResolution = {
   power_min: number;
@@ -549,6 +555,80 @@ export function resolveStateOfChargeFloor(
   return { state_of_charge_floor_percent: percent };
 }
 
+/**
+ * Resolve how much energy the site must hold ready, and the rate it may charge at.
+ *
+ * Both come from edp-api's sizing of the contracted flex obligation: readiness is the islanding
+ * ride-through floor plus the curtailment-response energy, and the recharge rate is what refills
+ * the latter inside the minimum interval between events. Derived rather than operator-set, so the
+ * number the plant is asked to hold is the number it was sold; `operator_reserve` already covers
+ * an operator wanting to hold more.
+ *
+ * The target is a percent of installed capacity, not energy, because every SoC threshold a
+ * consumer already holds is one — the supplier floor and the operator reserve both end up as a
+ * percent compared against a module's own `state_of_charge`. Dividing the site obligation by site
+ * capacity here means a consumer needs no capacity of its own to compare against, and the figure
+ * is the same for every module: a module's share of the obligation is proportional to its
+ * capacity, and its published SoC is its racks' capacity-weighted mean, so the ratio cancels.
+ *
+ * The rate is watts and genuinely is each module's own share — N modules each charging at the
+ * site rate would import N times what the site was sized for.
+ *
+ * Both fields are omitted together when there is nothing actionable: no readiness target, no rate
+ * to reach it, or no capacity-bearing device. Absent must mean no charging, because that is the
+ * behaviour of every deployment that predates this and shipping it cannot start a site importing
+ * power nobody asked for.
+ * @param dtm The self-describing deployment manifest
+ * @param children The module's own resolved children, whose capacity sets its share of the rate
+ * @returns The readiness percent and recharge power, or `{}`
+ */
+export function resolveReadiness(
+  dtm: DtmType,
+  children: DistributeChildType[],
+): ReadinessResolution {
+  const readinessMwh = dtm_readiness(dtm);
+  const rechargeMw = dtm.sizing_params.bess_recharge_mw;
+  if (!readinessMwh || !rechargeMw) return {};
+
+  const capacityOf = (deviceId: string): number =>
+    dtm.templates_used[dtm.devices[deviceId]?.template ?? ""]?.capacity_kwh ??
+    0;
+
+  let siteKwh = 0;
+  for (const deviceId of Object.keys(dtm.devices))
+    siteKwh += capacityOf(deviceId);
+  let moduleKwh = 0;
+  for (const child of children) moduleKwh += capacityOf(child.device_id);
+  if (siteKwh === 0 || moduleKwh === 0) return {};
+
+  // Reason: clamped rather than rejected. The floor resolver throws when its target exceeds rack
+  // capacity, but that checks sizing_params against itself; this lands against a rack list
+  // commissioning edits by hand, so an obligation larger than the racks installed so far is a
+  // half-built site, not a bad manifest. Charge to full and let the racks' own limits bound it.
+  const percent = Math.min(((readinessMwh * KWH_PER_MWH) / siteKwh) * 100, 100);
+  return {
+    readiness_soc_percent: percent,
+    // Reason: this module's share of the rate, not the site total. power_min/power_max on the
+    // same binding are already the sum of this module's own children, so an unprefixed field
+    // here is module-scoped by convention — site_capacity_wh says "site" precisely because it
+    // is the exception.
+    recharge_power_w: (rechargeMw * 1_000_000 * moduleKwh) / siteKwh,
+  };
+}
+
+/**
+ * The site's readiness target in MWh, or 0 when it has none.
+ * @param dtm The self-describing deployment manifest
+ * @returns Readiness energy in MWh
+ */
+function dtm_readiness(dtm: DtmType): number {
+  return dtm.sizing_params.bess_readiness_mwh;
+}
+
+/**
+ *
+ * @param dtm
+ */
 /**
  * Where the operator's energy reserve is published, and the site capacity it is a fraction of.
  *

@@ -40,6 +40,7 @@ import {
   resolveEnvelopeGuard,
   resolvePoiMeterDeviceId,
   resolveOperatorReserve,
+  resolveReadiness,
   resolveStateOfChargeFloor,
   type WeightedPairType,
   type DistributeChildType,
@@ -390,6 +391,7 @@ function collectCommandBindings(
           : {};
       const socFloor = resolveStateOfChargeFloor(dtm, deviceId);
       const operatorReserve = resolveOperatorReserve(dtm);
+      const readiness = resolveReadiness(dtm, children);
       out[name] = {
         ...connectionFor(conn, "distribute"),
         protocol: "distribute",
@@ -400,6 +402,7 @@ function collectCommandBindings(
         children,
         ...envelopeGuard,
         ...socFloor,
+        ...readiness,
         ...operatorReserve,
         unit: cmd.unit,
         verb: cmd.verb,

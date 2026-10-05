@@ -16,6 +16,7 @@ import {
   resolveEnvelopeGuard,
   resolveStateOfChargeFloor,
   resolveOperatorReserve,
+  resolveReadiness,
 } from "./spec-rollup";
 import type { DtmType } from "../topology/dtm.schema";
 
@@ -711,6 +712,134 @@ function withDerDispatch(dtm: DtmType): DtmType {
   } as unknown as DtmType["templates_used"][string];
   return dtm;
 }
+
+describe("resolveReadiness", () => {
+  it("converts the derived sizing figures to a percent of capacity and watts", () => {
+    // Arrange: the demo's real ERCOT heavy numbers — readiness is the ride-through floor plus
+    // the curtailment-response energy, and the recharge rate refills the latter between events.
+    // Two racks at 4000 kWh, so 7.07 MWh of 8 MWh installed
+    const dtm = dtmWithRackChildren();
+    dtm.sizing_params.bess_readiness_mwh = 7.0736842105263165;
+    dtm.sizing_params.bess_recharge_mw = 0.24819944598337954;
+
+    // Act
+    const resolved = resolveReadiness(
+      dtm,
+      resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power"),
+    );
+
+    // Assert: the manifest authors MWh and MW; both conversions happen once here rather than in
+    // the gateway's charge arithmetic, exactly as site_capacity_wh does for kWh
+    assert.equal(resolved.readiness_soc_percent, 88.42105263157896);
+    assert.equal(resolved.recharge_power_w, 248_199.44598337953);
+  });
+
+  it("shares the rate between modules but gives them the same target percent", () => {
+    // Arrange: three equal racks, two under module 1 and one under module 2. This is the case
+    // the shapes differ on — site-scoped power repeated on every binding would have the plant
+    // charging at N times its sized rate, which the import servo would then have to fight.
+    const dtm = dtmWithRackChildren();
+    dtm.sizing_params.bess_readiness_mwh = 6;
+    dtm.sizing_params.bess_recharge_mw = 0.3;
+    dtm.devices["bess_module_2"] = {
+      device_id: "bess_module_2",
+      template: dtm.devices["bess_module_1"]!.template,
+      parent: null,
+    } as unknown as DtmType["devices"][string];
+    dtm.devices["bess_rack_3"] = {
+      device_id: "bess_rack_3",
+      template: "bess_rack",
+      parent: "bess_module_2",
+    } as unknown as DtmType["devices"][string];
+
+    // Act
+    const two = resolveReadiness(
+      dtm,
+      resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power"),
+    );
+    const one = resolveReadiness(
+      dtm,
+      resolveDistributeChildren(dtm, "bess_module_2", "set", "active_power"),
+    );
+
+    // Assert: 6 of 12 MWh installed is 50% whichever module asks — the target is a percent of
+    // the site precisely so it needs no module capacity to compare against. The rate is the
+    // module's own share, because two modules charging at 0.3 MW each is 0.6 MW
+    assert.equal(two.readiness_soc_percent, 50);
+    assert.equal(one.readiness_soc_percent, 50);
+    assert.equal(two.recharge_power_w, 200_000);
+    assert.equal(one.recharge_power_w, 100_000);
+  });
+
+  it("holds the target at full charge when the racks installed cannot reach it", () => {
+    // Arrange: 20 MWh asked of 8 MWh installed — a site mid-commissioning, where the obligation
+    // edp-api sized is real but the racks it will be met with are still being added by hand
+    const dtm = dtmWithRackChildren();
+    dtm.sizing_params.bess_readiness_mwh = 20;
+    dtm.sizing_params.bess_recharge_mw = 0.3;
+
+    // Act
+    const resolved = resolveReadiness(
+      dtm,
+      resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power"),
+    );
+
+    // Assert: 100, not 250 — a half-built site charges to full rather than failing the whole
+    // manifest, which is what validating the sized obligation against the rack list would do
+    assert.equal(resolved.readiness_soc_percent, 100);
+  });
+
+  it("omits both fields when the site has no readiness target", () => {
+    // Arrange: a site with no flex obligation emits zero, which is every deployment today
+    const dtm = dtmWithRackChildren();
+    dtm.sizing_params.bess_readiness_mwh = 0;
+    dtm.sizing_params.bess_recharge_mw = 0;
+
+    // Act / Assert: absent must mean no charging — a site that never asked for this cannot be
+    // made to start importing by shipping the field
+    assert.deepEqual(
+      resolveReadiness(
+        dtm,
+        resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power"),
+      ),
+      {},
+    );
+  });
+
+  it("omits both fields when no device carries capacity", () => {
+    // Arrange: a readiness target with nothing to charge is meaningless
+    const dtm = dtmWithRackChildren();
+    dtm.sizing_params.bess_readiness_mwh = 7.07;
+    dtm.sizing_params.bess_recharge_mw = 0.25;
+    dtm.templates_used.bess_rack!.capacity_kwh = null;
+
+    // Act / Assert
+    assert.deepEqual(
+      resolveReadiness(
+        dtm,
+        resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power"),
+      ),
+      {},
+    );
+  });
+
+  it("omits the recharge rate's sibling rather than emitting a target with no rate", () => {
+    // Arrange: a target the site has no sized rate to reach is not actionable, and emitting it
+    // alone would leave the gateway to invent a rate
+    const dtm = dtmWithRackChildren();
+    dtm.sizing_params.bess_readiness_mwh = 7.07;
+    dtm.sizing_params.bess_recharge_mw = 0;
+
+    // Act / Assert
+    assert.deepEqual(
+      resolveReadiness(
+        dtm,
+        resolveDistributeChildren(dtm, "bess_module_1", "set", "active_power"),
+      ),
+      {},
+    );
+  });
+});
 
 describe("resolveOperatorReserve", () => {
   it("resolves the topic and sums site capacity into watt-hours", () => {
