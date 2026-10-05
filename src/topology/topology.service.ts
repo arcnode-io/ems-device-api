@@ -44,11 +44,6 @@ function nextMonotonicVersion(prev: string | null): string {
 export class TopologyService implements OnModuleInit {
   private readonly logger = new Logger(TopologyService.name);
 
-  // In-memory SLD SVG cache keyed by DTM version. Lazy: populated on the
-  // first GET /topology/sld.svg after each save or process boot.
-  private cachedSvg: Buffer | null = null;
-  private cachedSvgVersion: string | null = null;
-
   /**
    * Wires the TypeORM repository, bundled template catalog, MQTT client,
    * and SLD SVG renderer.
@@ -170,22 +165,25 @@ export class TopologyService implements OnModuleInit {
   }
 
   /**
-   * Return the SLD HMI SVG bytes for the latest DTM, calling edp-api to
-   * render when the cache is empty or stale. Lazy render keeps `POST /topology`
-   * decoupled from edp-api availability; first GET after each save or
-   * process restart pays the render latency.
+   * Return the SLD HMI SVG bytes for the latest DTM, rendering through edp-api
+   * only when this row has none stored yet.
+   *
+   * Lazy render keeps `POST /topology` decoupled from edp-api availability, and
+   * writing the result back means edp-api is needed once per DTM rather than once
+   * per process. A restart serves the stored bytes, which is what lets a shipped
+   * EMS keep its single-line diagram without the authoring tool alongside it.
    * @returns SVG bytes, or null if no DTM has been submitted yet
-   * @throws ServiceUnavailableException if edp-api is unreachable on render
+   * @throws ServiceUnavailableException if edp-api is unreachable and nothing is stored
    */
   async getLatestSld(): Promise<Buffer | null> {
     const row = await this.getLatestRow();
     if (row === null) return null;
-    if (this.cachedSvg !== null && this.cachedSvgVersion === row.version) {
-      return this.cachedSvg;
+    if (row.sldSvg !== null && row.sldSvg !== undefined) {
+      return row.sldSvg;
     }
     const svg = await this.sldRenderer.render(row.dtm as unknown as DtmType);
-    this.cachedSvg = svg;
-    this.cachedSvgVersion = row.version;
+    row.sldSvg = svg;
+    await this.repo.save(row);
     return svg;
   }
 }

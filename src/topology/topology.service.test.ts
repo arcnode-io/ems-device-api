@@ -190,9 +190,61 @@ describe("TopologyService.getLatestSld — lazy render + cache", () => {
     version: string;
     id: number;
     receivedAt: Date;
+    sldSvg: Buffer | null;
   } {
-    return { dtm: {}, version, id: 1, receivedAt: new Date() };
+    return { dtm: {}, version, id: 1, receivedAt: new Date(), sldSvg: null };
   }
+
+  it("serves a persisted SVG without calling edp-api, so a restart needs no renderer", async () => {
+    // Arrange — the row already carries bytes an earlier render stored. This is the
+    // shipped-EMS case: edp-api is an authoring tool the customer never receives, so a
+    // process restart must not depend on it being reachable.
+    const stored = Buffer.from("<svg id=persisted/>");
+    const repo = {
+      findOne: mock.fn(() =>
+        Promise.resolve({ ...row("1.0.0"), sldSvg: stored }),
+      ),
+      save: mock.fn((entity: unknown) => Promise.resolve(entity)),
+    };
+    const renderer = {
+      render: mock.fn(() => Promise.resolve(Buffer.from("<svg id=fresh/>"))),
+    } as unknown as SldSvgRendererService;
+    const svc = new TopologyService(repo as never, {}, stubMqtt, renderer);
+
+    // Act
+    const result = await svc.getLatestSld();
+
+    // Assert — the stored bytes, and edp-api was never asked
+    assert.equal(result?.toString("utf8"), "<svg id=persisted/>");
+    const renderMock = (
+      renderer.render as unknown as { mock: { callCount: () => number } }
+    ).mock;
+    assert.equal(renderMock.callCount(), 0);
+  });
+
+  it("persists the SVG on first render so the next boot has it", async () => {
+    // Arrange
+    const persisted: (Buffer | null)[] = [];
+    const theRow = row("1.0.0");
+    const repo = {
+      findOne: mock.fn(() => Promise.resolve(theRow)),
+      save: mock.fn((entity: { sldSvg?: Buffer | null }) => {
+        persisted.push(entity.sldSvg ?? null);
+        return Promise.resolve(entity);
+      }),
+    };
+    const renderer = {
+      render: mock.fn(() => Promise.resolve(Buffer.from("<svg id=fresh/>"))),
+    } as unknown as SldSvgRendererService;
+    const svc = new TopologyService(repo as never, {}, stubMqtt, renderer);
+
+    // Act
+    await svc.getLatestSld();
+
+    // Assert — the render was written back to the row, not just held in memory
+    assert.equal(persisted.length, 1);
+    assert.equal(persisted[0]?.toString("utf8"), "<svg id=fresh/>");
+  });
 
   it("returns null when no DTM has been submitted", async () => {
     // Arrange
@@ -206,9 +258,13 @@ describe("TopologyService.getLatestSld — lazy render + cache", () => {
     assert.equal(result, null);
   });
 
-  it("calls renderer on first GET, caches, skips renderer on second GET", async () => {
-    // Arrange — repo always returns the same version row
-    const repo = { findOne: mock.fn(() => Promise.resolve(row("1.0.0"))) };
+  it("calls renderer on first GET, stores it, skips renderer on second GET", async () => {
+    // Arrange — one row, and a save that persists onto it the way a repo would
+    const theRow = row("1.0.0");
+    const repo = {
+      findOne: mock.fn(() => Promise.resolve(theRow)),
+      save: mock.fn((entity: unknown) => Promise.resolve(entity)),
+    };
     const renderer = {
       render: mock.fn(() => Promise.resolve(Buffer.from("<svg id=cached/>"))),
     } as unknown as SldSvgRendererService;
@@ -227,10 +283,17 @@ describe("TopologyService.getLatestSld — lazy render + cache", () => {
     assert.equal(renderMock.callCount(), 1);
   });
 
-  it("re-renders when DTM version advances (cache stale)", async () => {
-    // Arrange — repo returns v1 then v2
+  it("re-renders when the DTM version advances, because that is a new row", async () => {
+    // Arrange — a version bump is a new row, so it carries no stored SVG of its own
     let version = "1.0.0";
-    const repo = { findOne: mock.fn(() => Promise.resolve(row(version))) };
+    const rows: Record<string, ReturnType<typeof row>> = {
+      "1.0.0": row("1.0.0"),
+      "1.0.1": row("1.0.1"),
+    };
+    const repo = {
+      findOne: mock.fn(() => Promise.resolve(rows[version])),
+      save: mock.fn((entity: unknown) => Promise.resolve(entity)),
+    };
     const renderer = {
       render: mock.fn(() => Promise.resolve(Buffer.from(`svg@${version}`))),
     } as unknown as SldSvgRendererService;

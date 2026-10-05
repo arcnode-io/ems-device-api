@@ -13,6 +13,7 @@ import { AppModuleWithDatabase, MAX_BODY_SIZE } from "../src/app.module";
 import { startPostgres } from "./fixtures/containers";
 import { TEMPLATE_CATALOG } from "../src/templates/templates.module";
 import type { DeviceTemplateType } from "../src/templates/template.schema";
+import { SldSvgRendererService } from "../src/topology/sld_svg_renderer.service";
 
 // Minimal templates for round-trip — canonical DeviceTemplate shape.
 const TEMPLATE_BESS = {
@@ -314,6 +315,79 @@ describe("Topology", () => {
     } finally {
       await app.close();
       await pg.stop();
+    }
+  });
+
+  test("the SLD survives a restart with edp-api unreachable", async () => {
+    // Arrange — one database, two app lifetimes. edp-api authors the SVG and is an
+    // engineering tool the customer never receives, so the shipped EMS must keep its
+    // single-line diagram across a restart without it.
+    const pg = await startPostgres();
+    process.env["DOCUMENT_URL"] = pg.url;
+
+    const SVG = Buffer.from('<svg id="persisted-across-restart"/>');
+
+    /**
+     * Build an app against the shared database with a stubbed SLD renderer.
+     * @param renderer stand-in for edp-api
+     * @returns an initialised Nest application
+     */
+    async function boot(
+      renderer: Pick<SldSvgRendererService, "render">,
+    ): Promise<INestApplication<App>> {
+      const fixture: TestingModule = await Test.createTestingModule({
+        imports: [AppModuleWithDatabase],
+      })
+        .overrideProvider(ConfigService)
+        .useValue({
+          get: <T = string>(_key: string, defaultValue?: T): T =>
+            defaultValue as T,
+        })
+        .overrideProvider(TEMPLATE_CATALOG)
+        .useValue(STUB_CATALOG)
+        .overrideProvider(SldSvgRendererService)
+        .useValue(renderer)
+        .compile();
+      const built: INestApplication<App> = fixture.createNestApplication();
+      await built.init();
+      return built;
+    }
+
+    // Act — first lifetime: edp-api is up, so the SVG is rendered and stored.
+    const first = await boot({ render: () => Promise.resolve(SVG) });
+    try {
+      const post = await client(first.getHttpServer())
+        .post("/topology")
+        .send(SAMPLE_DTM);
+      assert.strictEqual(post.status, 201, JSON.stringify(post.body));
+
+      const rendered = await client(first.getHttpServer()).get(
+        "/topology/sld.svg",
+      );
+      assert.strictEqual(rendered.status, 200);
+    } finally {
+      await first.close();
+    }
+
+    // Act — second lifetime: edp-api is gone. Anything reaching it is a failure.
+    const second = await boot({
+      render: () => {
+        throw new Error("edp-api must not be called after a restart");
+      },
+    });
+    try {
+      const served = await client(second.getHttpServer()).get(
+        "/topology/sld.svg",
+      );
+
+      // Assert — the stored bytes came back out of the database, byte for byte
+      assert.strictEqual(served.status, 200);
+      assert.strictEqual(
+        Buffer.from(served.body as Buffer).toString("utf8"),
+        SVG.toString("utf8"),
+      );
+    } finally {
+      await second.close();
     }
   });
 });
