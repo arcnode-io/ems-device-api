@@ -56,7 +56,7 @@ export class MqttClientService implements OnModuleInit, OnModuleDestroy {
     });
     this.client.on("connect", () => {
       this.logger.log(`mqtt connected ${url}`);
-      for (const listener of this.onConnectListeners) listener();
+      this.dispatchConnected();
     });
     this.client.on("error", (err) =>
       this.logger.warn(`mqtt error: ${err.message}`),
@@ -67,9 +67,17 @@ export class MqttClientService implements OnModuleInit, OnModuleDestroy {
    * Disconnect cleanly on app shutdown.
    */
   async onModuleDestroy(): Promise<void> {
+    // Reason: mqtt.js still emits "connect" for a CONNACK that lands after end(), and by then the
+    // database may be gone — so once shutdown has begun, a connect announces nothing.
+    this.onConnectListeners.length = 0;
     if (this.client !== undefined) {
       await this.client.endAsync();
     }
+  }
+
+  /** Runs every registered connect listener — empty once shutdown has begun. */
+  private dispatchConnected(): void {
+    for (const listener of this.onConnectListeners) listener();
   }
 
   /**

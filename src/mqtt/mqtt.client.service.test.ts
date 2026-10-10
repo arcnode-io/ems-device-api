@@ -87,4 +87,19 @@ describe("MqttClientService", () => {
     // Act / Assert — should not throw
     svc.publishTopologyChanged("1.0.0");
   });
+
+  it("a connect that lands after shutdown runs no listener", async () => {
+    // Arrange — mqtt.js emits "connect" for a CONNACK that arrives after end()
+    const svc = new MqttClientService(makeCfg("mqtt://test:1883"));
+    (svc as unknown as { client: MqttClient }).client = makeClient(false);
+    let runs = 0;
+    svc.onConnected(() => {
+      runs += 1;
+    });
+    // Act
+    await svc.onModuleDestroy();
+    (svc as unknown as { dispatchConnected: () => void }).dispatchConnected();
+    // Assert
+    assert.equal(runs, 0);
+  });
 });
