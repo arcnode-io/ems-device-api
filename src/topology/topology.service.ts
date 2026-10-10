@@ -49,7 +49,7 @@ export class TopologyService implements OnModuleInit {
    * and SLD SVG renderer.
    * @param repo TypeORM repository for Topology rows
    * @param catalog Slug-keyed device template catalog loaded at startup
-   * @param mqtt MQTT client for system/topology_changed broadcasts
+   * @param mqtt MQTT client for the system/topology_changed and system/loto_changed beacons
    * @param sldRenderer Wraps edp-api `POST /edp-api/sld-hmi-svg` for re-render
    */
   constructor(
@@ -126,6 +126,8 @@ export class TopologyService implements OnModuleInit {
     });
     const saved = await this.repo.save(row);
     this.mqtt.publishTopologyChanged(version);
+    // Reason: GET /loto expands locks over this DTM, so the locked set may have changed too.
+    this.mqtt.publishLotoChanged();
     return saved;
   }
 

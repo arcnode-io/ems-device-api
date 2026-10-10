@@ -105,11 +105,15 @@ export async function bootLotoApp(
 }
 
 /**
- * Persist LOTO_DTM through the service, bypassing HTTP.
+ * Persist a DTM through the service, bypassing HTTP.
  * @param app A booted app
+ * @param dtm The manifest to save (LOTO_DTM by default)
  */
-export async function seedLotoDtm(app: INestApplication): Promise<void> {
-  await app.get(TopologyService).save(LOTO_DTM as never);
+export async function seedLotoDtm(
+  app: INestApplication,
+  dtm: typeof LOTO_DTM = LOTO_DTM,
+): Promise<void> {
+  await app.get(TopologyService).save(dtm as never);
 }
 
 /**

@@ -22,9 +22,10 @@ import type { RoleType } from "../auth/auth.types";
 /**
  * Lockout/tagout state. Group lockout: a device is locked while at least one
  * row for it has no `clearedAt`; one person's clear never lifts another's.
- * Every set and clear is followed by a `system/loto_changed` beacon, and the
- * beacon is repeated on every broker connect so a consumer that booted
- * before us, or outlived a broker restart, re-reads the state.
+ * Every set and clear is followed by a `system/loto_changed` beacon; so is
+ * every DTM save (TopologyService), since `locked_devices` expands over the
+ * DTM. The beacon is repeated on every broker connect so a consumer that
+ * booted before us, or outlived a broker restart, re-reads the state.
  */
 @Injectable()
 export class LotoService implements OnModuleInit {

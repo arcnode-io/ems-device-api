@@ -177,5 +177,5 @@ The API provides several endpoints to manage this structure:
 - **GET /loto/history?device_id=**: Every lock row ever written for one device, newest first. A device that left the DTM keeps its history.
 - **POST /devices/{device_id}/loto**: `{ holder_name, permit_ref? }` with an `operator` bearer token → 201 the new row. 400 blank name · 401 no token · 403 viewer · 404 device not in DTM · 409 that holder already holds an active lock on it.
 - **DELETE /loto/{id}**: Clears exactly that row (`operator` token) → 200 the cleared row. 404 unknown · 409 already cleared. Nobody else's lock moves.
-- **MQTT `system/loto_changed`** `{ ts }` (QoS 1, no retain) after every set/clear and on every broker connect; consumers re-fetch `GET /loto`. LOTO is a state, not an alarm — nothing is acknowledged.
+- **MQTT `system/loto_changed`** `{ ts }` (QoS 1, no retain) after every set/clear, after every DTM save (`locked_devices` expands over the DTM) and on every broker connect; consumers re-fetch `GET /loto`. LOTO is a state, not an alarm — nothing is acknowledged.
 

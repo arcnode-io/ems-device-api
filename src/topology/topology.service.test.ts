@@ -22,6 +22,7 @@ const stubRepo = {} as Repository<Topology>;
 /** Stub — most tests don't care about broadcast; pass a no-op. */
 const stubMqtt = {
   publishTopologyChanged: () => undefined,
+  publishLotoChanged: () => undefined,
 } as unknown as MqttClientService;
 
 /** Stub — most tests don't exercise the SLD render path. */
@@ -370,7 +371,7 @@ describe("TopologyService.save — MQTT broadcast", () => {
     } as unknown as DtmType;
   }
 
-  it("save → publishTopologyChanged called with new version", async () => {
+  it("save → publishTopologyChanged with the new version, then publishLotoChanged", async () => {
     // Arrange
     const repo = {
       findOne: mock.fn(() => Promise.resolve(null)),
@@ -380,8 +381,10 @@ describe("TopologyService.save — MQTT broadcast", () => {
       ),
     };
     const publishMock = mock.fn();
+    const lotoMock = mock.fn();
     const mqtt = {
       publishTopologyChanged: publishMock,
+      publishLotoChanged: lotoMock,
     } as unknown as MqttClientService;
     const svc = new TopologyService(repo as never, {}, mqtt, stubRenderer);
     // Act
@@ -389,6 +392,7 @@ describe("TopologyService.save — MQTT broadcast", () => {
     // Assert
     assert.equal(publishMock.mock.callCount(), 1);
     assert.equal(publishMock.mock.calls[0]?.arguments[0], "1.0.0");
+    assert.equal(lotoMock.mock.callCount(), 1);
   });
 
   it("subsequent save → publishTopologyChanged with bumped version", async () => {
@@ -404,6 +408,7 @@ describe("TopologyService.save — MQTT broadcast", () => {
     const publishMock = mock.fn();
     const mqtt = {
       publishTopologyChanged: publishMock,
+      publishLotoChanged: () => undefined,
     } as unknown as MqttClientService;
     const svc = new TopologyService(repo as never, {}, mqtt, stubRenderer);
     // Act
@@ -454,6 +459,7 @@ describe("TopologyService announces on broker connect", () => {
         registered = listener;
       },
       publishTopologyChanged: (version: string) => announced.push(version),
+      publishLotoChanged: () => undefined,
     } as unknown as MqttClientService;
     const repo = {
       findOne: () => Promise.resolve({ version: "1.0.8" } as Topology),
@@ -480,6 +486,7 @@ describe("TopologyService announces on broker connect", () => {
         registered = listener;
       },
       publishTopologyChanged: (version: string) => announced.push(version),
+      publishLotoChanged: () => undefined,
     } as unknown as MqttClientService;
     const repo = {
       findOne: () => Promise.resolve(null),

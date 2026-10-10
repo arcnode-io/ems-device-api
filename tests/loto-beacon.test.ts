@@ -14,6 +14,7 @@ import {
 } from "./fixtures/containers";
 import {
   JWT_SECRET,
+  LOTO_DTM,
   bootLotoApp,
   clearAs,
   lockAs,
@@ -118,5 +119,35 @@ describe("LOTO beacon + persistence", () => {
       "rack_002",
     ]);
     assert.strictEqual(seen.length, beforeRestart + 1, "beacon after restart");
+  });
+
+  test("a DTM re-POST beacons, and a rack added under a locked module is locked", async () => {
+    // Arrange — bess_001 is still held by Tech Six from the test above
+    const beforeSave = seen.length;
+    const grown = {
+      ...LOTO_DTM,
+      devices: {
+        ...LOTO_DTM.devices,
+        rack_003: {
+          device_id: "rack_003",
+          template: "bess_rack_v1",
+          parent: "bess_001",
+        },
+      },
+    };
+
+    // Act
+    await seedLotoDtm(app, grown);
+    await settle();
+
+    // Assert
+    assert.strictEqual(seen.length, beforeSave + 1, "beacon after DTM save");
+    const res = await client(app.getHttpServer()).get("/loto");
+    assert.deepStrictEqual((res.body as Active).locked_devices, [
+      "bess_001",
+      "rack_001",
+      "rack_002",
+      "rack_003",
+    ]);
   });
 });
