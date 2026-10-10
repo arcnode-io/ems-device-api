@@ -127,9 +127,29 @@ function dtmWithSyntheticHeadroom(): DtmType {
         display_name: null,
         connection: null,
       },
+      // Reason: the headroom inputs name it, and a synthetic measurement whose
+      // inputs name a device the deployment lacks is left out of the spec.
+      operating_envelope: {
+        device_id: "operating_envelope",
+        template: "operating_envelope",
+        parent: null,
+        display_name: null,
+        connection: null,
+      },
     },
     buses: [],
     templates_used: {
+      operating_envelope: {
+        template: "operating_envelope",
+        kind: "leaf",
+        equipment_id: "DOE-001",
+        vendor: "Test",
+        model: "Test Envelope",
+        description: "operating envelope fixture",
+        contains: [],
+        commands: {},
+        measurements: {},
+      },
       poi_meter: {
         template: "poi_meter",
         kind: "leaf",
@@ -1059,5 +1079,25 @@ describe("MQTT-computed bindings carry no connection fields", () => {
       ([, entry]) => entry.protocol === "modbus_tcp",
     )!;
     assert.equal(polled[1].host, "10.0.0.5");
+  });
+});
+
+describe("buildProtocolSourceMap — a deployment with no POI meter", () => {
+  it("omits the synthetic measurements that need the meter and keeps the rest", () => {
+    // Arrange — the order's topology has no connection-point meter yet, so
+    // headroom cannot be computed; the gateway must still get a spec.
+    const dtm = dtmWithSyntheticHeadroom();
+    delete dtm.devices.meter_01;
+
+    // Act
+    const map = buildProtocolSourceMap(dtm);
+
+    // Assert — export_headroom reads the meter, import_headroom only the envelope
+    // and the module itself, so only the former goes
+    assert.equal(map.bess_module_1?.export_headroom, undefined);
+    assert.ok(
+      map.bess_module_1?.import_headroom,
+      "import_headroom still resolves",
+    );
   });
 });

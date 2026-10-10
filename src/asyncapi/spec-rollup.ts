@@ -443,8 +443,9 @@ export function resolveEnvelopeTopics(
  * treats it as the only asset at the POI, which makes a zero export limit clamp
  * every discharge to zero even when the site is importing.
  *
- * Throws rather than returning nothing when the meter is missing: every site has
- * a POI meter, so its absence is a malformed DTM, not a shape to degrade into.
+ * Throws rather than returning nothing when the meter is missing: callers check
+ * {@link envelopeAvailable} first and leave the guard out, so reaching this
+ * without a meter is a caller bug, not a deployment shape.
  * @param dtm The self-describing deployment manifest
  * @param deviceId The device this distribute binding lives on (the parent)
  * @returns The meter's concrete `active_power` topic
@@ -472,8 +473,9 @@ function resolvePoiActivePowerTopic(dtm: DtmType, deviceId: string): string {
  * ids vary per deployment (edp-api emits `poi_meter_1`, platform's fixture uses
  * `meter_01`) and neither should have to change for resolution to work.
  *
- * Throws rather than returning nothing: every site has a POI meter, so its
- * absence is a malformed DTM, not a shape to degrade into.
+ * Throws rather than returning nothing: a caller that can live without the
+ * meter checks for one first (see {@link envelopeAvailable}); one that reaches
+ * this needs it, and two meters are ambiguous either way.
  * @param dtm The self-describing deployment manifest
  * @param context Caller-supplied error prefix naming what needed the meter
  * @returns The meter's device_id
@@ -493,6 +495,20 @@ export function resolvePoiMeterDeviceId(dtm: DtmType, context: string): string {
     );
   }
   return meters[0]!.device_id;
+}
+
+/**
+ * Whether this deployment can be envelope-guarded at all: it needs the site's
+ * operating_envelope device and a connection-point meter to compare against.
+ * @param dtm The self-describing deployment manifest
+ * @returns true when both exist
+ */
+export function envelopeAvailable(dtm: DtmType): boolean {
+  const hasEnvelope = dtm.devices[OPERATING_ENVELOPE_DEVICE_ID] !== undefined;
+  const hasMeter = Object.values(dtm.devices).some(
+    (device) => device.template === POI_METER_TEMPLATE,
+  );
+  return hasEnvelope && hasMeter;
 }
 
 /** kWh in one MWh — sizing_params states the reserve in MWh, rack capacity is kWh. */

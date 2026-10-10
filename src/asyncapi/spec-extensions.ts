@@ -23,6 +23,7 @@
  * `templates_used` map.
  */
 
+import { Logger } from "@nestjs/common";
 import { PROVISIONED_AT_COMMISSIONING } from "../topology/dtm.schema";
 import type { DtmType } from "../topology/dtm.schema";
 import type { PowerCapChildType } from "./spec-rollup";
@@ -30,6 +31,7 @@ import type {
   DeviceTemplateType,
   BindingType,
   AlarmType,
+  CommandType,
 } from "../templates/template.schema";
 import { concreteMessageName } from "./spec-messages";
 import {
@@ -39,6 +41,7 @@ import {
   resolveDistributeChildren,
   resolveEnvelopeGuard,
   resolvePoiMeterDeviceId,
+  envelopeAvailable,
   resolveOperatorReserve,
   resolveReadiness,
   resolveStateOfChargeFloor,
@@ -48,6 +51,9 @@ import {
 
 /** Stands in for the deployment's connection-point meter id, which varies per site. */
 const POI_METER_PLACEHOLDER = "{poi_meter_device_id}";
+
+/** Generation-time warnings: what this deployment cannot do, said once per spec build. */
+const logger = new Logger("spec");
 
 /** Per-device, per-channel protocol source map. */
 export type ProtocolSourceMap = Record<string, Record<string, unknown>>;
@@ -337,6 +343,14 @@ function collectMeasurementBindings(
       deviceId,
       dtm,
     );
+    if (resolvedBinding === null) {
+      // Reason: a synthetic reading whose inputs this deployment cannot publish would
+      // subscribe to silence and hold forever; leaving it out says so in the spec.
+      logger.warn(
+        `device ${deviceId}: ${name} omitted — its inputs name a device this deployment does not have`,
+      );
+      continue;
+    }
     out[name] = {
       ...connectionFor(conn, resolvedBinding.protocol),
       ...resolvedBinding,
@@ -346,6 +360,68 @@ function collectMeasurementBindings(
     } as ProtocolSourceEntry;
   }
   return out;
+}
+
+/**
+ * Resolve one `distribute` command into the entry the gateway executes: the
+ * children it fans out to, and the envelope guard when the site can carry one.
+ * @param dtm The self-describing deployment manifest
+ * @param deviceId The device this distribute binding lives on (the parent)
+ * @param name The command's name in the template, for the warning
+ * @param cmd The authored command, binding narrowed to `distribute`
+ * @param conn The device's connection block, merged in protocol-aware
+ * @returns The resolved command entry
+ */
+function distributeEntry(
+  dtm: DtmType,
+  deviceId: string,
+  name: string,
+  cmd: CommandType & {
+    binding: Extract<BindingType, { protocol: "distribute" }>;
+  },
+  conn: ConnectionFields,
+): CommandSourceEntry {
+  const children = resolveDistributeChildren(
+    dtm,
+    deviceId,
+    cmd.verb,
+    cmd.target,
+  );
+  // Reason: the guard compares the site's limits against the connection-point
+  // reading; with no envelope or no meter there is nothing to compare, so the
+  // dispatch is emitted unguarded rather than the whole spec refused.
+  const guarded = cmd.binding.ramp_rate_per_sec != null;
+  const guardable = guarded && envelopeAvailable(dtm);
+  if (guarded && !guardable) {
+    logger.warn(
+      `device ${deviceId}: ${name} dispatches without an envelope guard — no operating_envelope device or no POI meter in this deployment`,
+    );
+  }
+  // Reason: the contract says the guard's six fields appear exactly when the
+  // ramp does, because ramp and hysteresis are the guard's own parameters —
+  // an unguarded dispatch carries none of them.
+  const envelopeGuard = guardable
+    ? resolveEnvelopeGuard(dtm, deviceId, cmd.target, children)
+    : {};
+  const socFloor = resolveStateOfChargeFloor(dtm, deviceId);
+  const operatorReserve = resolveOperatorReserve(dtm);
+  const readiness = resolveReadiness(dtm, children);
+  return {
+    ...connectionFor(conn, "distribute"),
+    protocol: "distribute",
+    allocation_policy: cmd.binding.allocation_policy,
+    ramp_rate_per_sec: guardable ? cmd.binding.ramp_rate_per_sec : null,
+    hysteresis_margin: guardable ? cmd.binding.hysteresis_margin : null,
+    hysteresis_dwell_secs: guardable ? cmd.binding.hysteresis_dwell_secs : null,
+    children,
+    ...envelopeGuard,
+    ...socFloor,
+    ...readiness,
+    ...operatorReserve,
+    unit: cmd.unit,
+    verb: cmd.verb,
+    target: cmd.target,
+  } as CommandSourceEntry;
 }
 
 /**
@@ -379,35 +455,13 @@ function collectCommandBindings(
     if (cmd.binding === null || cmd.binding === undefined) continue;
 
     if (cmd.binding.protocol === "distribute") {
-      const children = resolveDistributeChildren(
+      out[name] = distributeEntry(
         dtm,
         deviceId,
-        cmd.verb,
-        cmd.target,
+        name,
+        cmd as Parameters<typeof distributeEntry>[3],
+        conn,
       );
-      const envelopeGuard =
-        cmd.binding.ramp_rate_per_sec != null
-          ? resolveEnvelopeGuard(dtm, deviceId, cmd.target, children)
-          : {};
-      const socFloor = resolveStateOfChargeFloor(dtm, deviceId);
-      const operatorReserve = resolveOperatorReserve(dtm);
-      const readiness = resolveReadiness(dtm, children);
-      out[name] = {
-        ...connectionFor(conn, "distribute"),
-        protocol: "distribute",
-        allocation_policy: cmd.binding.allocation_policy,
-        ramp_rate_per_sec: cmd.binding.ramp_rate_per_sec,
-        hysteresis_margin: cmd.binding.hysteresis_margin,
-        hysteresis_dwell_secs: cmd.binding.hysteresis_dwell_secs,
-        children,
-        ...envelopeGuard,
-        ...socFloor,
-        ...readiness,
-        ...operatorReserve,
-        unit: cmd.unit,
-        verb: cmd.verb,
-        target: cmd.target,
-      } as CommandSourceEntry;
       continue;
     }
 
@@ -422,14 +476,20 @@ function collectCommandBindings(
       // is resolved only when the site has said it may. Without it the command
       // still exists and an operator can send a percentage by hand — the
       // difference is whether anything reaches for it unprompted.
-      const guard = dtm.sizing_params.compute_shed_enabled
-        ? {
-            ...resolveEnvelopeTopics(dtm, deviceId),
-            ramp_rate_per_sec: cmd.binding.ramp_rate_per_sec,
-            hysteresis_margin: cmd.binding.hysteresis_margin,
-            hysteresis_dwell_secs: cmd.binding.hysteresis_dwell_secs,
-          }
-        : {};
+      if (dtm.sizing_params.compute_shed_enabled && !envelopeAvailable(dtm)) {
+        logger.warn(
+          `device ${deviceId}: ${name} cannot shed on its own — compute_shed_enabled but no operating_envelope device or no POI meter in this deployment`,
+        );
+      }
+      const guard =
+        dtm.sizing_params.compute_shed_enabled && envelopeAvailable(dtm)
+          ? {
+              ...resolveEnvelopeTopics(dtm, deviceId),
+              ramp_rate_per_sec: cmd.binding.ramp_rate_per_sec,
+              hysteresis_margin: cmd.binding.hysteresis_margin,
+              hysteresis_dwell_secs: cmd.binding.hysteresis_dwell_secs,
+            }
+          : {};
       out[name] = {
         ...connectionFor(conn, "power_cap"),
         protocol: "power_cap",
@@ -447,6 +507,12 @@ function collectCommandBindings(
       deviceId,
       dtm,
     );
+    if (resolvedBinding === null) {
+      logger.warn(
+        `device ${deviceId}: command ${name} omitted — its inputs name a device this deployment does not have`,
+      );
+      continue;
+    }
     // Reason: see the command contract — value_map is measurement-only, and
     // edp-api emits it as explicit null on every command whose protocol has the
     // field, so it has to be removed rather than left absent.
@@ -479,12 +545,16 @@ function resolveDeviceIdPlaceholder(
   binding: BindingType,
   deviceId: string,
   dtm: DtmType,
-): BindingType {
+): BindingType | null {
   if (binding.protocol !== "synthetic" || !binding.inputs) return binding;
+  const needsMeter = binding.inputs.some((topic) =>
+    topic.includes(POI_METER_PLACEHOLDER),
+  );
+  // Reason: resolved lazily, so a deployment with no POI meter only touches
+  // templates that actually reference one — and those are omitted, not failed.
+  if (needsMeter && !hasPoiMeter(dtm)) return null;
   const inputs = binding.inputs.map((topic) => {
     const withDevice = topic.replace(/\{device_id\}/g, deviceId);
-    // Reason: resolved lazily, so a deployment with no POI meter only fails on
-    // templates that actually reference one.
     if (!withDevice.includes(POI_METER_PLACEHOLDER)) return withDevice;
     return withDevice.replaceAll(
       POI_METER_PLACEHOLDER,
@@ -492,6 +562,7 @@ function resolveDeviceIdPlaceholder(
     );
   });
   assertNoUnresolvedPlaceholders(inputs, deviceId);
+  if (inputs.some((topic) => !deploymentPublishes(dtm, topic))) return null;
   // Reason: source_measurement and child_template are the unresolved form of
   // the same binding — a resolved entry says `inputs` (or `pairs`) instead, and
   // its contract omits both keys. edp-api emits unset optionals as explicit
@@ -504,6 +575,32 @@ function resolveDeviceIdPlaceholder(
   void authoredSource;
   void authoredChildren;
   return { ...resolved, inputs };
+}
+
+/**
+ * Whether any device in this deployment instantiates the connection-point meter template.
+ * @param dtm The self-describing deployment manifest
+ * @returns true when at least one poi_meter device exists
+ */
+function hasPoiMeter(dtm: DtmType): boolean {
+  return Object.values(dtm.devices).some(
+    (device) => device.template === "poi_meter",
+  );
+}
+
+/**
+ * Whether a resolved input topic names a device this deployment has. A device
+ * topic is `sites/{site_id}/devices/<device_id>/...`; anything else (a topic
+ * outside the device family) is taken as publishable.
+ * @param dtm The self-describing deployment manifest
+ * @param topic A synthetic input topic after placeholder substitution
+ * @returns false only for a device topic whose device is not in the DTM
+ */
+function deploymentPublishes(dtm: DtmType, topic: string): boolean {
+  const slots = topic.split("/");
+  if (slots[0] !== "sites" || slots[2] !== "devices") return true;
+  const device = slots[3];
+  return device !== undefined && dtm.devices[device] !== undefined;
 }
 
 /**

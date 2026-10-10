@@ -14,6 +14,7 @@ import {
   resolveSourceMeasurement,
   resolveDistributeChildren,
   resolveEnvelopeGuard,
+  envelopeAvailable,
   resolveStateOfChargeFloor,
   resolveOperatorReserve,
   resolveReadiness,
@@ -874,5 +875,36 @@ describe("resolveOperatorReserve", () => {
     // Act / Assert: a reserve expressed as a fraction of nothing is meaningless, so neither
     // field is emitted rather than emitting a zero a consumer would divide by
     assert.deepEqual(resolveOperatorReserve(dtm), {});
+  });
+});
+
+describe("envelopeAvailable — can this deployment be envelope-guarded", () => {
+  it("is true with an operating_envelope device and a POI meter", () => {
+    // Arrange
+    const dtm = dtmWithRackChildren();
+    addEnvelopeGuardFixtures(dtm);
+
+    // Act + Assert
+    assert.equal(envelopeAvailable(dtm), true);
+  });
+
+  it("is false without a POI meter — a commissioning-stage order has none yet", () => {
+    // Arrange
+    const dtm = dtmWithRackChildren();
+    addEnvelopeGuardFixtures(dtm);
+    delete dtm.devices.poi_meter_1;
+
+    // Act + Assert
+    assert.equal(envelopeAvailable(dtm), false);
+  });
+
+  it("is false without an operating_envelope device", () => {
+    // Arrange
+    const dtm = dtmWithRackChildren();
+    addEnvelopeGuardFixtures(dtm);
+    delete dtm.devices.operating_envelope;
+
+    // Act + Assert
+    assert.equal(envelopeAvailable(dtm), false);
   });
 });
