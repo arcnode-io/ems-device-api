@@ -9,6 +9,7 @@ import { describe, test } from "node:test";
 import { AppModuleWithDatabase } from "../src/app.module";
 import { TEMPLATE_CATALOG } from "../src/templates/templates.module";
 import { TopologyService } from "../src/topology/topology.service";
+import { MqttClientService } from "../src/mqtt/mqtt.client.service";
 import type { DeviceTemplateType } from "../src/templates/template.schema";
 import { startHivemq, startPostgres } from "./fixtures/containers";
 
@@ -26,6 +27,10 @@ const TEMPLATE_BESS = {
   },
   commands: {},
 };
+
+// Reason: fourteen suites share one Docker host under `node --test`; a loaded broker can take
+// longer than a fixed sleep, so the test waits for the event and only gives up after this long.
+const ROUND_TRIP_TIMEOUT_MS = 10_000;
 
 const STUB_CATALOG: Record<string, DeviceTemplateType> = {
   bess_module_v1: TEMPLATE_BESS as unknown as DeviceTemplateType,
@@ -121,19 +126,29 @@ describe("MQTT topology_changed broadcast integration", () => {
           );
         });
       });
-      subscriber.on("message", (topic, payload) => {
-        log("📨", `${topic}: ${payload.toString()}`);
-        messages.push(payload.toString());
+      const firstMessage = new Promise<void>((resolve) => {
+        subscriber!.on("message", (topic, payload) => {
+          log("📨", `${topic}: ${payload.toString()}`);
+          messages.push(payload.toString());
+          resolve();
+        });
       });
 
       // Let the device-api MQTT client finish its async connect before publishing
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise<void>((resolve) => {
+        app.get(MqttClientService).onConnected(resolve);
+      });
 
       // Act
       await service.save(SAMPLE_DTM as never);
 
-      // Wait for publish round-trip
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      // Wait for the publish round-trip, bounded
+      await Promise.race([
+        firstMessage,
+        new Promise<void>((resolve) => {
+          setTimeout(resolve, ROUND_TRIP_TIMEOUT_MS).unref();
+        }),
+      ]);
 
       // Assert
       assert.equal(
