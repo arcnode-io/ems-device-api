@@ -8,6 +8,7 @@ import { ConfigService } from "@nestjs/config";
 import { connect, type MqttClient } from "mqtt";
 
 const TOPIC_TOPOLOGY_CHANGED = "system/topology_changed";
+const TOPIC_LOTO_CHANGED = "system/loto_changed";
 const RECONNECT_PERIOD_MS = 5000;
 
 /**
@@ -92,23 +93,31 @@ export class MqttClientService implements OnModuleInit, OnModuleDestroy {
    * @param version New semver string from TopologyService.save
    */
   publishTopologyChanged(version: string): void {
+    this.publishSystem(TOPIC_TOPOLOGY_CHANGED, { version });
+  }
+
+  /**
+   * Fire-and-forget nudge that the lockout set changed; consumers re-fetch
+   * `GET /loto`. Carries no state on purpose — the fetch is the truth.
+   */
+  publishLotoChanged(): void {
+    this.publishSystem(TOPIC_LOTO_CHANGED, {});
+  }
+
+  /**
+   * Publish a control-plane beacon with a UTC `ts` stamped in. QoS 1, no
+   * retain: a late subscriber reads the current state over HTTP instead.
+   * @param topic system/{event_type}
+   * @param fields Extra payload fields beside `ts`
+   */
+  private publishSystem(topic: string, fields: Record<string, string>): void {
     if (this.client === undefined || !this.client.connected) {
-      this.logger.warn(
-        `mqtt not connected; dropping topology_changed v${version}`,
-      );
+      this.logger.warn(`mqtt not connected; dropping ${topic}`);
       return;
     }
-    const payload = JSON.stringify({
-      ts: new Date().toISOString(),
-      version,
+    const payload = JSON.stringify({ ts: new Date().toISOString(), ...fields });
+    this.client.publish(topic, payload, { qos: 1, retain: false }, (err) => {
+      if (err) this.logger.warn(`mqtt publish failed: ${err.message}`);
     });
-    this.client.publish(
-      TOPIC_TOPOLOGY_CHANGED,
-      payload,
-      { qos: 1, retain: false },
-      (err) => {
-        if (err) this.logger.warn(`mqtt publish failed: ${err.message}`);
-      },
-    );
   }
 }

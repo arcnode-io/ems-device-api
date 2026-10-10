@@ -291,6 +291,17 @@ Creates complete resource structure:
 #### Integration Testing Strategy
 - **Integration tests in `tests/` directory** with `.test.ts` suffix
 
+## Lockout/tagout (`src/loto/`)
+
+One table, `loto_lock`, is the state and the audit trail: active ⇔ `cleared_at IS NULL`, rows are
+never deleted. Group lockout — one row per person, a device is locked while any row is active, a
+clear names one row. `GET /loto` returns the active rows and `locked_devices`, the subtree-expanded
+set (`locked_devices.ts`); it is computed here because only device-api holds the DTM parent chain.
+Reads are open (the gateway fetches at boot with no credential); writes take an operator JWT
+(`JwtAuthGuard` then `OperatorGuard`). Every set/clear and every broker connect publishes
+`system/loto_changed` — a nudge, not state. LOTO is a state, not an alarm: nothing is acknowledged.
+Contract: `/tmp/handoff-loto-contract.md` (PM handoff 2026-10-10, L1–L9).
+
 ## Integration Testing with Testcontainers 🐳
 
 ### Dependencies

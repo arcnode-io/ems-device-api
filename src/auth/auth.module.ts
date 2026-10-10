@@ -71,5 +71,8 @@ function loadBrokerCredsFromEnv(): BrokerCredMap {
     { provide: USER_STORE, useFactory: loadUserStoreFromEnv },
     { provide: BROKER_CRED_MAP, useFactory: loadBrokerCredsFromEnv },
   ],
+  // Reason: JwtAuthGuard needs JwtService wherever it is mounted; a module that
+  // guards its own routes imports AuthModule and gets the verifier with it.
+  exports: [JwtModule],
 })
 export class AuthModule {}

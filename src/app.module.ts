@@ -10,6 +10,7 @@ import { CallApiModule } from "./call-api/call-api.module";
 import { TopologyModule } from "./topology/topology.module";
 import { AsyncapiModule } from "./asyncapi/asyncapi.module";
 import { AuthModule } from "./auth/auth.module";
+import { LotoModule } from "./loto/loto.module";
 
 // Raised from Express's 100 KB default via `app.useBodyParser`, which replaces
 // Nest's built-in parser — route middleware is too late, the built-in one has
@@ -62,6 +63,7 @@ export class AppModule {}
     TopologyModule,
     AsyncapiModule,
     AuthModule,
+    LotoModule,
   ],
   controllers: [AppController],
   providers: [
