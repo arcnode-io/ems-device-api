@@ -1039,6 +1039,32 @@ describe("connection merge is protocol-aware", () => {
     assert.equal(entries.snmp_thing!.host, "10.0.0.5");
     assert.equal(entries.snmp_thing!.port, 502);
   });
+
+  it("stamps unit_id on sunspec entries, which ride Modbus TCP", () => {
+    // Arrange — SunSpec is a register map over Modbus TCP; the gateway still
+    // needs the slave id to discover the model chain.
+    const dtm = dtmWithBoundCommand();
+    dtm.devices.bess_rack_1!.connection = {
+      host: "10.0.0.5",
+      port: 502,
+      unit_id: "7",
+    };
+    const meas = dtm.templates_used.bess_rack!.measurements;
+    meas.sunspec_w = {
+      unit: "watts",
+      type: "float",
+      binding: { protocol: "sunspec", model_id: 103, point: "W" },
+    } as unknown as (typeof meas)[string];
+
+    // Act
+    const map = buildProtocolSourceMap(dtm) as Record<
+      string,
+      Record<string, Record<string, unknown>>
+    >;
+
+    // Assert
+    assert.equal(map.bess_rack_1!.sunspec_w!.unit_id, "7");
+  });
 });
 
 describe("MQTT-computed bindings carry no connection fields", () => {

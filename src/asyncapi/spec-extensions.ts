@@ -263,7 +263,8 @@ function payloadRef(templateSlug: string, name: string): { $ref: string } {
  * exactly what each binding declares.
  * @param conn The device's merged connection fields
  * @param protocol The binding's protocol
- * @returns conn, minus unit_id for every protocol but modbus_tcp
+ * @returns conn, minus unit_id for every protocol but modbus_tcp and sunspec
+ *   (SunSpec rides Modbus TCP, so it needs the slave id too)
  */
 function connectionFor(
   conn: ConnectionFields,
@@ -283,7 +284,9 @@ function connectionFor(
   ) {
     return null;
   }
-  if (conn === null || protocol === "modbus_tcp") return conn;
+  if (conn === null || protocol === "modbus_tcp" || protocol === "sunspec") {
+    return conn;
+  }
   const rest = { ...conn };
   delete rest.unit_id;
   return rest;

@@ -317,6 +317,37 @@ describe("edp-api mirror — SunSpec scale_factor_address", () => {
   });
 });
 
+describe("edp-api mirror — sunspec binding", () => {
+  it("names a point by model and point id, optionally one bit of it", () => {
+    // Arrange + Act — EPC CAB1000: model 103 W, and En as bit 0 of 65534 CmdBits.
+    const watts = Binding.parse({
+      protocol: "sunspec",
+      model_id: 103,
+      point: "W",
+    });
+    const enable = Binding.parse({
+      protocol: "sunspec",
+      model_id: 65534,
+      point: "CmdBits",
+      bit: 0,
+    });
+
+    // Assert
+    assert.deepEqual(watts, { protocol: "sunspec", model_id: 103, point: "W" });
+    assert.deepEqual(enable, {
+      protocol: "sunspec",
+      model_id: 65534,
+      point: "CmdBits",
+      bit: 0,
+    });
+  });
+
+  it("rejects a register address — the gateway resolves it from the model chain", () => {
+    // Arrange + Act + Assert
+    fail({ protocol: "sunspec", model_id: 103, point: "W", address: 40084 });
+  });
+});
+
 describe("edp-api b68d05f mirror — data_type not defaulted, redfish scale", () => {
   it("leaves data_type absent when the template omits it", () => {
     // Arrange + Act — edp-api requires it on emit, but a DTM authored before the

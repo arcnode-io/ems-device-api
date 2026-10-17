@@ -33,6 +33,19 @@ const ModbusBinding = z.strictObject({
   value_map: z.record(z.string(), z.string()).nullish(),
 });
 
+// SunSpec over Modbus TCP, addressed by model + point name instead of register:
+// the gateway walks the device's model chain at connect and resolves the point,
+// so a firmware that reorders models still reads right. Shape only here.
+const SunspecBinding = z.strictObject({
+  protocol: z.literal("sunspec"),
+  model_id: z.number().int(),
+  point: z.string(),
+  // One bit of a bitfield point (EPC's CmdBits bit 0 = En). Absent = whole point.
+  bit: z.number().int().nullish(),
+  // Raw device value to our enum label, same as every other enum-capable binding.
+  value_map: z.record(z.string(), z.string()).nullish(),
+});
+
 const Dnp3Binding = z.strictObject({
   protocol: z.literal("dnp3_tcp"),
   // Relays report in their own primary units — SEL-351's device profile gives
@@ -236,6 +249,7 @@ const DistributeBinding = z
 
 export const Binding = z.discriminatedUnion("protocol", [
   ModbusBinding,
+  SunspecBinding,
   Dnp3Binding,
   SnmpBinding,
   RedfishBinding,
