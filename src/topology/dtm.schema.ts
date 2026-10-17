@@ -72,6 +72,10 @@ export const Device = z.strictObject({
   parent: z.string().nullish(),
   display_name: z.string().nullish(),
   connection: Connection.nullish(),
+  // This installed device's energy, when the template can't know it: one CATL
+  // bank is the whole order's storage (4 MWh order -> 4000). Absent = the
+  // template's capacity_kwh, as for a Megapack. Read via deviceCapacityKwh.
+  capacity_kwh: z.number().nullish(),
   // Accepted but unused. ems/system_adr.md §25 dropped the site-level live/
   // commissioned state this gated, and nothing in any repo ever enforced it.
   // Device is strictObject, so the field has to stay accepted while any DTM

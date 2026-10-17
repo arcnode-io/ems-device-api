@@ -132,6 +132,25 @@ function childTemplate(dtm: DtmType, child: DeviceType): DeviceTemplateType {
 }
 
 /**
+ * A device's nameplate energy: its own capacity_kwh when the DTM sets one,
+ * else its template's. Every capacity sum goes through here so the floor the
+ * gateway enforces and the one the HMI shows can't disagree.
+ * @param dtm The self-describing deployment manifest
+ * @param device The device whose energy to read
+ * @returns kWh, or null when neither the device nor its template says
+ */
+export function deviceCapacityKwh(
+  dtm: DtmType,
+  device: DeviceType,
+): number | null {
+  return (
+    device.capacity_kwh ??
+    dtm.templates_used[device.template]?.capacity_kwh ??
+    null
+  );
+}
+
+/**
  * Fill the MEASUREMENT_ADDRESS topic template with a concrete device_id,
  * measurement, and unit. `{site_id}` stays unresolved for gateway runtime.
  * @param deviceId The measurement's owning device id
@@ -189,14 +208,15 @@ export function resolveSourceMeasurement(
           `device ${deviceId}: source_measurement "${sourceMeasurement}" not found on child ${child.device_id}'s template (${child.template})`,
         );
       }
-      if (tpl.capacity_kwh === null) {
+      const capacity = deviceCapacityKwh(dtm, child);
+      if (capacity === null) {
         throw new Error(
-          `device ${deviceId}: weighted_mean requires capacity_kwh on child ${child.device_id}'s template (${child.template}), but it's null`,
+          `device ${deviceId}: weighted_mean requires capacity_kwh on child ${child.device_id} or its template (${child.template}), but both are null`,
         );
       }
       return {
         topic: buildTopic(child.device_id, sourceMeasurement, meas.unit),
-        weight: tpl.capacity_kwh,
+        weight: capacity,
       };
     });
     return { pairs };
@@ -605,13 +625,14 @@ export function resolveStateOfChargeFloor(
         `device ${deviceId}: child ${child.device_id}'s template ${child.template} not in catalog`,
       );
     }
-    if (shared && tpl.capacity_kwh === null) continue;
-    if (tpl.capacity_kwh === null) {
+    const capacity = deviceCapacityKwh(dtm, child);
+    if (shared && capacity === null) continue;
+    if (capacity === null) {
       throw new Error(
-        `device ${deviceId}: reserve floor requires capacity_kwh on child ${child.device_id}'s template (${child.template}), but it's null`,
+        `device ${deviceId}: reserve floor requires capacity_kwh on child ${child.device_id} or its template (${child.template}), but both are null`,
       );
     }
-    totalKwh += tpl.capacity_kwh;
+    totalKwh += capacity;
   }
   if (totalKwh === 0) {
     throw new Error(
@@ -663,9 +684,10 @@ export function resolveReadiness(
   const rechargeMw = dtm.sizing_params.bess_recharge_mw;
   if (!readinessMwh || !rechargeMw) return {};
 
-  const capacityOf = (deviceId: string): number =>
-    dtm.templates_used[dtm.devices[deviceId]?.template ?? ""]?.capacity_kwh ??
-    0;
+  const capacityOf = (deviceId: string): number => {
+    const device = dtm.devices[deviceId];
+    return device ? (deviceCapacityKwh(dtm, device) ?? 0) : 0;
+  };
 
   let siteKwh = 0;
   for (const deviceId of Object.keys(dtm.devices))
@@ -733,7 +755,7 @@ export function resolveOperatorReserve(
 
   let totalKwh = 0;
   for (const device of Object.values(dtm.devices)) {
-    const capacity = dtm.templates_used[device.template]?.capacity_kwh;
+    const capacity = deviceCapacityKwh(dtm, device);
     if (capacity) totalKwh += capacity;
   }
   if (totalKwh === 0) return {};

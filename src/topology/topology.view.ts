@@ -19,6 +19,7 @@ import type {
   MeasurementType,
 } from "../templates/template.schema";
 import { deviceBounds } from "./device_bounds";
+import { deviceCapacityKwh } from "../asyncapi/spec-rollup";
 
 const KWH_PER_MWH = 1000;
 
@@ -213,7 +214,7 @@ function projectDevice(dtm: DtmType, dev: DeviceType): DeviceView {
 function projectBess(dtm: DtmType): BessView | null {
   let totalKwh = 0;
   for (const device of Object.values(dtm.devices)) {
-    const capacity = dtm.templates_used[device.template]?.capacity_kwh;
+    const capacity = deviceCapacityKwh(dtm, device);
     if (capacity) totalKwh += capacity;
   }
   if (totalKwh === 0) return null;

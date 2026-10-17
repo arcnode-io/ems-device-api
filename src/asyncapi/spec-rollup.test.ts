@@ -423,6 +423,52 @@ describe("resolveStateOfChargeFloor — module-sourced SoC", () => {
   });
 });
 
+describe("per-device capacity_kwh overrides the template's", () => {
+  it("reserves against the bank's ordered capacity, not a template constant", () => {
+    // Arrange — one CATL bank is the whole order's energy, so the template
+    // can't know it; edp-api writes 8000 kWh onto the device.
+    const dtm = dtmWithSharedBank();
+    dtm.templates_used.bess_rack!.capacity_kwh = null;
+    dtm.templates_used.bess_bank!.capacity_kwh = null;
+    (dtm.devices.bank_1 as { capacity_kwh?: number }).capacity_kwh = 8000;
+    (
+      dtm.sizing_params as { bess_reserve_floor_mwh?: number }
+    ).bess_reserve_floor_mwh = 0.8;
+
+    // Act
+    const resolved = resolveStateOfChargeFloor(
+      dtm,
+      "bess_module_1",
+      SHARED_BANK_DISTRIBUTE,
+    );
+
+    // Assert — 800 / 8000 kWh
+    assert.equal(resolved.state_of_charge_floor_percent, 10);
+  });
+
+  it("weights a weighted_mean rollup by the device's capacity when it has one", () => {
+    // Arrange — two racks on a 4000 kWh template; rack_a's device says 12000.
+    const dtm = dtmWithRackChildren();
+    (dtm.devices.bess_rack_a as { capacity_kwh?: number }).capacity_kwh = 12000;
+
+    // Act
+    const resolved = resolveSourceMeasurement(
+      dtm,
+      "bess_module_1",
+      "state_of_charge",
+      "weighted_mean",
+    );
+
+    // Assert
+    assert.deepEqual(
+      (resolved as { pairs: { weight: number }[] }).pairs.map(
+        (pair) => pair.weight,
+      ),
+      [12000, 4000],
+    );
+  });
+});
+
 describe("resolveDistributeChildren — child_template + state_of_charge_source", () => {
   it("splits across child_template only, every child reading the module's SoC", () => {
     // Arrange
