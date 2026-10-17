@@ -150,6 +150,54 @@ describe("CommandSourceEntry", () => {
     assert.equal(result.success, false);
   });
 
+  it("rejects child_template / state_of_charge_source on a resolved distribute entry", () => {
+    // Arrange — both only say how to resolve children[]; the gateway denies
+    // unknown fields, so a resolved entry carrying either would break it.
+    const base = {
+      protocol: "distribute",
+      allocation_policy: "equal_split",
+      unit: "watts",
+      verb: "set",
+      target: "active_power",
+    };
+
+    // Act
+    const withTemplate = CommandSourceEntry.safeParse({
+      ...base,
+      child_template: "pcs",
+    });
+    const withSource = CommandSourceEntry.safeParse({
+      ...base,
+      state_of_charge_source: "module",
+    });
+
+    // Assert
+    assert.equal(withTemplate.success, false);
+    assert.equal(withSource.success, false);
+  });
+
+  it("still rejects partial authored ramp/hysteresis on a resolved distribute entry", () => {
+    // Arrange + Act — two of three, with the guard's resolution fields present.
+    const result = CommandSourceEntry.safeParse({
+      protocol: "distribute",
+      allocation_policy: "equal_split",
+      ramp_rate_per_sec: 0.1,
+      hysteresis_margin: 0.05,
+      power_min: -1,
+      power_max: 1,
+      import_limit_topic: "a",
+      export_limit_topic: "b",
+      active_power_topic: "c",
+      poi_active_power_topic: "d",
+      unit: "watts",
+      verb: "set",
+      target: "active_power",
+    });
+
+    // Assert
+    assert.equal(result.success, false);
+  });
+
   it("rejects children on a protocol other than distribute", () => {
     const result = CommandSourceEntry.safeParse({
       protocol: "modbus_tcp",

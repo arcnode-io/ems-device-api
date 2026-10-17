@@ -389,6 +389,7 @@ function distributeEntry(
     deviceId,
     cmd.verb,
     cmd.target,
+    cmd.binding,
   );
   // Reason: the guard compares the site's limits against the connection-point
   // reading; with no envelope or no meter there is nothing to compare, so the
@@ -406,7 +407,7 @@ function distributeEntry(
   const envelopeGuard = guardable
     ? resolveEnvelopeGuard(dtm, deviceId, cmd.target, children)
     : {};
-  const socFloor = resolveStateOfChargeFloor(dtm, deviceId);
+  const socFloor = resolveStateOfChargeFloor(dtm, deviceId, cmd.binding);
   const operatorReserve = resolveOperatorReserve(dtm);
   const readiness = resolveReadiness(dtm, children);
   return {

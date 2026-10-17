@@ -28,7 +28,13 @@ export function deviceBounds(
     if (cmd.binding?.protocol !== "distribute") continue;
     let children;
     try {
-      children = resolveDistributeChildren(dtm, deviceId, cmd.verb, cmd.target);
+      children = resolveDistributeChildren(
+        dtm,
+        deviceId,
+        cmd.verb,
+        cmd.target,
+        cmd.binding,
+      );
     } catch (err) {
       // Reason: a module whose children can't be resolved can't be dispatched —
       // /asyncapi refuses the binding with the detail. The view still serves

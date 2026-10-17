@@ -8,7 +8,10 @@
 
 import { z } from "zod";
 import type { DtmType, DeviceType } from "../topology/dtm.schema";
-import type { DeviceTemplateType } from "../templates/template.schema";
+import type {
+  BindingType,
+  DeviceTemplateType,
+} from "../templates/template.schema";
 import { MEASUREMENT_ADDRESS } from "./spec-channels";
 
 /**
@@ -223,6 +226,9 @@ export function resolveSourceMeasurement(
  * @param deviceId The device this distribute binding lives on (the parent)
  * @param verb The command's verb, inherited by every child's own command
  * @param target The command's target, inherited by every child's own command
+ * @param binding The authored distribute binding; its child_template narrows
+ *     the children and its state_of_charge_source picks whose SoC they read.
+ *     Absent = every child, each with its own SoC.
  * @returns Resolved per-child allocation data, sorted by device_id
  */
 export function resolveDistributeChildren(
@@ -230,8 +236,16 @@ export function resolveDistributeChildren(
   deviceId: string,
   verb: string,
   target: string,
+  binding?: Pick<
+    Extract<BindingType, { protocol: "distribute" }>,
+    "child_template" | "state_of_charge_source"
+  >,
 ): DistributeChildType[] {
-  const children = resolveChildren(dtm, deviceId);
+  const children = resolveChildren(dtm, deviceId, binding?.child_template);
+  const sharedSocTopic =
+    binding?.state_of_charge_source === "module"
+      ? moduleStateOfChargeTopic(dtm, deviceId)
+      : null;
 
   return children.map((child) => {
     const tpl = childTemplate(dtm, child);
@@ -253,7 +267,7 @@ export function resolveDistributeChildren(
     }
 
     const soc = tpl.measurements.state_of_charge;
-    if (!soc) {
+    if (!sharedSocTopic && !soc) {
       throw new Error(
         `device ${deviceId}: distribute binding needs state_of_charge on child ${child.device_id}'s template (${child.template}), none found`,
       );
@@ -273,15 +287,32 @@ export function resolveDistributeChildren(
         "operating_state",
         operatingState.unit,
       ),
-      state_of_charge_topic: buildTopic(
-        child.device_id,
-        "state_of_charge",
-        soc.unit,
-      ),
+      state_of_charge_topic:
+        sharedSocTopic ??
+        buildTopic(child.device_id, "state_of_charge", soc!.unit),
       power_min: targetMeas.bounds.min,
       power_max: targetMeas.bounds.max,
     };
   });
+}
+
+/**
+ * The module's own state_of_charge topic, for children that share it.
+ * @param dtm The self-describing deployment manifest
+ * @param deviceId The module carrying the distribute binding
+ * @returns The module's state_of_charge topic
+ * @throws {Error} When the module's template has no state_of_charge — the
+ *     gateway's reserve floor needs one, so this is never optional
+ */
+function moduleStateOfChargeTopic(dtm: DtmType, deviceId: string): string {
+  const module = dtm.devices[deviceId]!;
+  const soc = childTemplate(dtm, module).measurements.state_of_charge;
+  if (!soc) {
+    throw new Error(
+      `device ${deviceId}: distribute binding takes state_of_charge from the module, but ${deviceId}'s template (${module.template}) has no state_of_charge`,
+    );
+  }
+  return buildTopic(deviceId, "state_of_charge", soc.unit);
 }
 
 /**
@@ -546,15 +577,25 @@ const KWH_PER_MWH = 1000;
  * a child without `capacity_kwh` is a malformed battery rather than a non-battery
  * device, and is rejected rather than quietly left without a floor.
  * @param dtm The self-describing deployment manifest
+ * With `state_of_charge_source: module` the children share the module's one SoC,
+ * so the floor is a percent of the module's energy-holding children (the bank),
+ * and children with no capacity (the PCS units) are skipped rather than rejected.
+ * @param dtm The self-describing deployment manifest
  * @param deviceId The device this distribute binding lives on (the parent)
+ * @param binding The authored distribute binding, for its state_of_charge_source
  * @returns The floor as a percent, or `{}` when no reserve is configured
  */
 export function resolveStateOfChargeFloor(
   dtm: DtmType,
   deviceId: string,
+  binding?: Pick<
+    Extract<BindingType, { protocol: "distribute" }>,
+    "state_of_charge_source"
+  >,
 ): StateOfChargeFloorResolution {
   const floorMwh = dtm.sizing_params.bess_reserve_floor_mwh;
   if (!floorMwh) return {};
+  const shared = binding?.state_of_charge_source === "module";
 
   let totalKwh = 0;
   for (const child of resolveChildren(dtm, deviceId)) {
@@ -564,6 +605,7 @@ export function resolveStateOfChargeFloor(
         `device ${deviceId}: child ${child.device_id}'s template ${child.template} not in catalog`,
       );
     }
+    if (shared && tpl.capacity_kwh === null) continue;
     if (tpl.capacity_kwh === null) {
       throw new Error(
         `device ${deviceId}: reserve floor requires capacity_kwh on child ${child.device_id}'s template (${child.template}), but it's null`,

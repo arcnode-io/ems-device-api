@@ -363,6 +363,119 @@ describe("resolveDistributeChildren", () => {
 });
 
 /**
+ * dtmWithRackChildren() reshaped like a DC-coupled module: the racks stand in
+ * for PCS leaves with no SoC of their own, a battery bank with no power command
+ * sits beside them, and the module carries the shared state_of_charge.
+ * @returns A DTM fixture with one module, two PCS-like children and one bank
+ */
+function dtmWithSharedBank(): DtmType {
+  const dtm = dtmWithRackChildren();
+  delete (dtm.templates_used.bess_rack!.measurements as Record<string, unknown>)
+    .state_of_charge;
+  dtm.templates_used.bess_module!.measurements.state_of_charge = {
+    ...dtmWithRackChildren().templates_used.bess_rack!.measurements
+      .state_of_charge!,
+    binding: null,
+  } as DtmType["templates_used"][string]["measurements"][string];
+  dtm.devices.bank_1 = {
+    device_id: "bank_1",
+    template: "bess_bank",
+    parent: "bess_module_1",
+    display_name: null,
+    connection: null,
+  };
+  dtm.templates_used.bess_bank = {
+    ...dtm.templates_used.bess_module!,
+    template: "bess_bank",
+    kind: "leaf",
+    measurements: {},
+  };
+  return dtm;
+}
+
+const SHARED_BANK_DISTRIBUTE = {
+  protocol: "distribute",
+  allocation_policy: "equal_split",
+  child_template: "bess_rack",
+  state_of_charge_source: "module",
+} as const;
+
+describe("resolveStateOfChargeFloor — module-sourced SoC", () => {
+  it("reserves against the energy-holding children, not the PCS units", () => {
+    // Arrange — PCS-like racks hold no energy (capacity_kwh null); the bank
+    // holds 8000 kWh. 0.8 MWh reserve.
+    const dtm = dtmWithSharedBank();
+    dtm.templates_used.bess_rack!.capacity_kwh = null;
+    dtm.templates_used.bess_bank!.capacity_kwh = 8000;
+    (
+      dtm.sizing_params as { bess_reserve_floor_mwh?: number }
+    ).bess_reserve_floor_mwh = 0.8;
+
+    // Act
+    const resolved = resolveStateOfChargeFloor(
+      dtm,
+      "bess_module_1",
+      SHARED_BANK_DISTRIBUTE,
+    );
+
+    // Assert — 800 kWh / 8000 kWh = 10 %, applied to the one shared SoC.
+    assert.equal(resolved.state_of_charge_floor_percent, 10);
+  });
+});
+
+describe("resolveDistributeChildren — child_template + state_of_charge_source", () => {
+  it("splits across child_template only, every child reading the module's SoC", () => {
+    // Arrange
+    const dtm = dtmWithSharedBank();
+
+    // Act
+    const children = resolveDistributeChildren(
+      dtm,
+      "bess_module_1",
+      "set",
+      "active_power",
+      SHARED_BANK_DISTRIBUTE,
+    );
+
+    // Assert — the bank gets no share; both PCS read one shared SoC.
+    assert.deepEqual(
+      children.map((child) => [child.device_id, child.state_of_charge_topic]),
+      [
+        [
+          "bess_rack_a",
+          "sites/{site_id}/devices/bess_module_1/measurements/state_of_charge/percent",
+        ],
+        [
+          "bess_rack_b",
+          "sites/{site_id}/devices/bess_module_1/measurements/state_of_charge/percent",
+        ],
+      ],
+    );
+  });
+
+  it("throws when state_of_charge_source is module but the module has no state_of_charge", () => {
+    // Arrange
+    const dtm = dtmWithSharedBank();
+    delete (
+      dtm.templates_used.bess_module!.measurements as Record<string, unknown>
+    ).state_of_charge;
+
+    // Act + Assert — SoC stays required; it just moves to the module.
+    assert.throws(
+      () =>
+        resolveDistributeChildren(
+          dtm,
+          "bess_module_1",
+          "set",
+          "active_power",
+          SHARED_BANK_DISTRIBUTE,
+        ),
+      /bess_module_1.*state_of_charge/,
+    );
+  });
+});
+
+/**
  * Adds an `operating_envelope` singleton device + template (import_limit/
  * export_limit, matching the real edp-api convention) and a real
  * `active_power` measurement on bess_module's own template (needed for

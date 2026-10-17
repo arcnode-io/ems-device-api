@@ -228,6 +228,13 @@ const DistributeBinding = z
   .strictObject({
     protocol: z.literal("distribute"),
     allocation_policy: z.enum(["equal_split", "soc_weighted"]),
+    // Only children of this template get a share. Absent = every child. A
+    // DC-coupled module also parents its battery bank, which has no command.
+    child_template: z.string().nullish(),
+    // Where each child's SoC comes from. Absent/"child" = its own (an AC
+    // Megapack integrates its own). "module" = the module's state_of_charge,
+    // shared by every child: PCS units on one DC bank have no SoC of their own.
+    state_of_charge_source: z.enum(["child", "module"]).nullish(),
     ramp_rate_per_sec: z.number().nullish(),
     hysteresis_margin: z.number().nullish(),
     hysteresis_dwell_secs: z.number().nullish(),

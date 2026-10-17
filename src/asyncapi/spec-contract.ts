@@ -170,31 +170,53 @@ function buildResolvedSynthetic(
 function buildResolvedDistribute(
   distributeVariant: AnyBindingVariant,
 ): z.ZodObject {
-  return safeExtend(distributeVariant, {
+  // Reason: child_template and state_of_charge_source say how to resolve
+  // children[]; the resolved entry states the result, and the gateway rejects
+  // unknown fields. Rebuilding the shape drops the authored refine, so the
+  // ramp/hysteresis all-or-nothing check is restated below.
+  const resolvedShape = z
+    .strictObject(distributeVariant.shape as z.ZodRawShape)
+    .omit({ child_template: true, state_of_charge_source: true });
+  return safeExtend(resolvedShape as unknown as AnyBindingVariant, {
     ...ConnectionFields,
     ...CommandUnitAndIdentity,
     ...DistributeResolvedFields,
-  }).refine(
-    (entry) => {
-      const envelopeGuardFields = [
-        entry.power_min,
-        entry.power_max,
-        entry.import_limit_topic,
-        entry.export_limit_topic,
-        entry.active_power_topic,
-        entry.poi_active_power_topic,
-      ];
-      const present = envelopeGuardFields.filter(
-        (field) => field != null,
-      ).length;
-      const expected = entry.ramp_rate_per_sec != null ? 6 : 0;
-      return present === expected;
-    },
-    {
-      message:
-        "resolved distribute entry: envelope-guard resolution fields must appear exactly when ramp_rate_per_sec does",
-    },
-  );
+  })
+    .refine(
+      (entry) => {
+        const present = [
+          entry.ramp_rate_per_sec,
+          entry.hysteresis_margin,
+          entry.hysteresis_dwell_secs,
+        ].filter((field) => field != null).length;
+        return present === 0 || present === 3;
+      },
+      {
+        message:
+          "resolved distribute entry: ramp_rate_per_sec, hysteresis_margin, hysteresis_dwell_secs require all three or none",
+      },
+    )
+    .refine(
+      (entry) => {
+        const envelopeGuardFields = [
+          entry.power_min,
+          entry.power_max,
+          entry.import_limit_topic,
+          entry.export_limit_topic,
+          entry.active_power_topic,
+          entry.poi_active_power_topic,
+        ];
+        const present = envelopeGuardFields.filter(
+          (field) => field != null,
+        ).length;
+        const expected = entry.ramp_rate_per_sec != null ? 6 : 0;
+        return present === expected;
+      },
+      {
+        message:
+          "resolved distribute entry: envelope-guard resolution fields must appear exactly when ramp_rate_per_sec does",
+      },
+    );
 }
 
 const protocolSourceVariants = Binding.options.map((variant) =>

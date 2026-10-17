@@ -105,6 +105,50 @@ describe("deviceBounds", () => {
     // Act + Assert
     assert.equal(deviceBounds(dtm, "bess_module_1"), null);
   });
+
+  it("sums only child_template, reading the module's shared SoC", () => {
+    // Arrange — a DC-coupled shape: two PCS-like racks with no SoC of their
+    // own, plus a battery bank under the same module that takes no share.
+    const dtm = dtmWithRacks(2);
+    const templates = dtm.templates_used as Record<string, unknown>;
+    const module = templates.bess_module as {
+      measurements: Record<string, unknown>;
+      commands: { set_active_power: { binding: unknown } };
+    };
+    module.commands.set_active_power.binding = {
+      protocol: "distribute",
+      allocation_policy: "equal_split",
+      child_template: "bess_rack",
+      state_of_charge_source: "module",
+    };
+    module.measurements.state_of_charge = {
+      unit: "percent",
+      type: "float",
+      bounds: null,
+    };
+    delete (templates.bess_rack as { measurements: Record<string, unknown> })
+      .measurements.state_of_charge;
+    templates.bess_bank = {
+      template: "bess_bank",
+      kind: "leaf",
+      measurements: {},
+      commands: {},
+    };
+    (dtm.devices as Record<string, unknown>).bank_1 = {
+      device_id: "bank_1",
+      template: "bess_bank",
+      parent: "bess_module_1",
+      connection: null,
+    };
+
+    // Act
+    const bounds = deviceBounds(dtm, "bess_module_1");
+
+    // Assert
+    assert.deepEqual(bounds, {
+      active_power: { min: -2 * RACK_W, max: 2 * RACK_W, nominal: 0 },
+    });
+  });
 });
 
 describe("projectDtmToView bounds", () => {
