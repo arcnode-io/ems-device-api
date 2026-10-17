@@ -7,7 +7,7 @@
 
 import { z } from "zod";
 
-const ModbusBinding = z.strictObject({
+export const ModbusBinding = z.strictObject({
   protocol: z.literal("modbus_tcp"),
   function_code: z.number().int(),
   address: z.number().int(),

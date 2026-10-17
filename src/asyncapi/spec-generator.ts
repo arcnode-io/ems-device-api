@@ -14,6 +14,8 @@
  * (`edp-api`) embeds in the payload.
  */
 
+import { buildHeartbeatSourceMap } from "./spec-heartbeat";
+import type { HeartbeatSourceMap } from "./spec-heartbeat";
 import type { DtmType } from "../topology/dtm.schema";
 import { buildComponents } from "./spec-components";
 import { buildChannels, buildOperations } from "./spec-channels";
@@ -94,6 +96,8 @@ interface AsyncApi3Spec {
   "x-command-source": CommandSourceMap;
   "x-enum-values": EnumValuesMap;
   "x-alarms": AlarmsMap;
+  // Absent when no device needs one; the gateway treats absent as none.
+  "x-heartbeat-source"?: HeartbeatSourceMap;
 }
 
 /**
@@ -128,5 +132,19 @@ export function buildSpec(dtm: DtmType, version: string): AsyncApi3Spec {
     "x-command-source": validateCommandSourceMap(buildCommandSourceMap(dtm)),
     "x-enum-values": buildEnumValuesMap(templates),
     "x-alarms": buildAlarmsMap(dtm),
+    ...heartbeats(dtm),
   };
+}
+
+/**
+ * The x-heartbeat-source key, or nothing when no device needs a heartbeat, so
+ * every spec without one stays byte-identical.
+ * @param dtm The self-describing deployment manifest
+ * @returns `{ "x-heartbeat-source": map }` or `{}`
+ */
+function heartbeats(dtm: DtmType): {
+  "x-heartbeat-source"?: HeartbeatSourceMap;
+} {
+  const map = buildHeartbeatSourceMap(dtm);
+  return Object.keys(map).length > 0 ? { "x-heartbeat-source": map } : {};
 }

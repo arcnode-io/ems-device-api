@@ -9,6 +9,7 @@
 import { z } from "zod";
 import { Binding } from "./template.protocols.schema";
 import { Alarm } from "./template.alarms.schema";
+import { Heartbeat } from "./template.heartbeat.schema";
 
 export { Binding } from "./template.protocols.schema";
 export type { BindingType } from "./template.protocols.schema";
@@ -236,6 +237,9 @@ export const DeviceTemplate = z
     // Modules + un-rationalized leaves surface as []. Mirror of edp-api
     // DeviceTemplate.alarms (Pydantic), shape defined in template.alarms.schema.
     alarms: z.array(Alarm).default([]),
+    // A keep-alive the device needs from the EMS (CATL's BMS faults without
+    // one). Absent on nearly every template.
+    heartbeat: Heartbeat.nullish(),
   })
   .refine((tpl) => SLUG_RE.test(tpl.template), {
     message: "template slug must match snake_case slug pattern",
