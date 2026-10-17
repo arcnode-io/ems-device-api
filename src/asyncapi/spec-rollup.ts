@@ -339,6 +339,22 @@ export function resolvePowerCapChildren(
 }
 
 /**
+ * A distributing module's range: the sum of its children's own ranges. The
+ * gateway clamps dispatch to it and /topology/view shows it, so both read it here.
+ * @param children Already-resolved children from resolveDistributeChildren
+ * @returns Summed power_min / power_max, watts
+ */
+export function distributeRange(children: DistributeChildType[]): {
+  power_min: number;
+  power_max: number;
+} {
+  return {
+    power_min: children.reduce((sum, child) => sum + child.power_min, 0),
+    power_max: children.reduce((sum, child) => sum + child.power_max, 0),
+  };
+}
+
+/**
  * Resolve a `distribute` binding's envelope-guard fields: the module-level
  * clamp range (summed from each already-resolved child's own power_min/
  * power_max — bess_module has no static rated-power fact of its own, since
@@ -359,8 +375,7 @@ export function resolveEnvelopeGuard(
   target: string,
   children: DistributeChildType[],
 ): EnvelopeGuardResolution {
-  const power_min = children.reduce((sum, child) => sum + child.power_min, 0);
-  const power_max = children.reduce((sum, child) => sum + child.power_max, 0);
+  const { power_min, power_max } = distributeRange(children);
 
   const tpl = dtm.templates_used[dtm.devices[deviceId]!.template];
   const targetMeas = tpl?.measurements[target];

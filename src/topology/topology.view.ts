@@ -14,9 +14,11 @@
 import { PROVISIONED_AT_COMMISSIONING } from "./dtm.schema";
 import type { DtmType, DeviceType, BusType } from "./dtm.schema";
 import type {
+  BoundsType,
   DeviceTemplateType,
   MeasurementType,
 } from "../templates/template.schema";
+import { deviceBounds } from "./device_bounds";
 
 const KWH_PER_MWH = 1000;
 
@@ -68,6 +70,12 @@ export interface DeviceView {
    */
   provisioned: boolean;
   extra_measurements: Record<string, MeasurementView> | null;
+  /**
+   * Ranges derived for this device alone, overriding its template's bounds for
+   * the same measurement — e.g. a BESS module's active_power is the sum of its
+   * racks, the same range the gateway clamps dispatch to. Null when none.
+   */
+  bounds: Record<string, BoundsType> | null;
 }
 
 /** Site-wide BESS pack + reserve floor, derived once here for every consumer. */
@@ -165,10 +173,11 @@ function projectTemplate(tpl: DeviceTemplateType): DeviceTemplateView {
 
 /**
  * Project a Device onto its view (strip connection; sanitize extra_measurements).
+ * @param dtm The DTM the device belongs to, for derived ranges
  * @param dev Raw DTM device
  * @returns View safe for customer-browser consumption
  */
-function projectDevice(dev: DeviceType): DeviceView {
+function projectDevice(dtm: DtmType, dev: DeviceType): DeviceView {
   const extras: Record<string, MeasurementView> | null =
     dev.extra_measurements != null
       ? Object.fromEntries(
@@ -185,6 +194,7 @@ function projectDevice(dev: DeviceType): DeviceView {
     display_name: dev.display_name ?? null,
     provisioned: isProvisioned(dev.connection ?? null),
     extra_measurements: extras,
+    bounds: deviceBounds(dtm, dev.device_id),
   };
 }
 
@@ -224,7 +234,7 @@ function projectBess(dtm: DtmType): BessView | null {
 export function projectDtmToView(dtm: DtmType): DtmView {
   const devices: Record<string, DeviceView> = {};
   for (const [id, dev] of Object.entries(dtm.devices)) {
-    devices[id] = projectDevice(dev);
+    devices[id] = projectDevice(dtm, dev);
   }
   const templates: Record<string, DeviceTemplateView> = {};
   for (const [slug, tpl] of Object.entries(dtm.templates_used)) {
