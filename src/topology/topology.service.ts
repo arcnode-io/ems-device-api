@@ -1,10 +1,4 @@
-import {
-  OnModuleInit,
-  BadRequestException,
-  Inject,
-  Injectable,
-  Logger,
-} from "@nestjs/common";
+import { OnModuleInit, Inject, Injectable, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { Topology } from "./topology.entity";
@@ -14,6 +8,7 @@ import type { DeviceTemplateType } from "../templates/template.schema";
 import { MqttClientService } from "../mqtt/mqtt.client.service";
 import { SldSvgRendererService } from "./sld_svg_renderer.service";
 import { projectDtmToView, type DtmView } from "./topology.view";
+import { assertTemplatesInCatalog } from "./catalog_check";
 
 /**
  * Compute the next monotonic version per ADR-002 §10 (MVP simplification).
@@ -92,14 +87,7 @@ export class TopologyService implements OnModuleInit {
    * @param dtm Validated Device Topology Manifest
    */
   validateAgainstCatalog(dtm: DtmType): void {
-    const unknown = Object.keys(dtm.templates_used).filter(
-      (slug) => !(slug in this.catalog),
-    );
-    if (unknown.length > 0) {
-      throw new BadRequestException(
-        `templates_used contains slug(s) not in bundled catalog: ${unknown.join(", ")}`,
-      );
-    }
+    assertTemplatesInCatalog(dtm, this.catalog);
   }
 
   /**
