@@ -409,7 +409,7 @@ function distributeEntry(
     : {};
   const socFloor = resolveStateOfChargeFloor(dtm, deviceId, cmd.binding);
   const operatorReserve = resolveOperatorReserve(dtm);
-  const readiness = resolveReadiness(dtm, children);
+  const readiness = resolveReadiness(dtm, children, deviceId, cmd.binding);
   return {
     ...connectionFor(conn, "distribute"),
     protocol: "distribute",

@@ -674,11 +674,20 @@ export function resolveStateOfChargeFloor(
  * power nobody asked for.
  * @param dtm The self-describing deployment manifest
  * @param children The module's own resolved children, whose capacity sets its share of the rate
+ * @param deviceId The module, needed only when its children share its SoC
+ * @param binding The authored distribute binding. With `state_of_charge_source: module` the
+ *     PCS children hold no energy, so the share comes from every energy-holding child of the
+ *     module (the bank) — the same split the reserve floor makes.
  * @returns The readiness percent and recharge power, or `{}`
  */
 export function resolveReadiness(
   dtm: DtmType,
   children: DistributeChildType[],
+  deviceId?: string,
+  binding?: Pick<
+    Extract<BindingType, { protocol: "distribute" }>,
+    "state_of_charge_source"
+  >,
 ): ReadinessResolution {
   const readinessMwh = dtm_readiness(dtm);
   const rechargeMw = dtm.sizing_params.bess_recharge_mw;
@@ -693,7 +702,11 @@ export function resolveReadiness(
   for (const deviceId of Object.keys(dtm.devices))
     siteKwh += capacityOf(deviceId);
   let moduleKwh = 0;
-  for (const child of children) moduleKwh += capacityOf(child.device_id);
+  const energyHolders =
+    binding?.state_of_charge_source === "module" && deviceId != null
+      ? resolveChildren(dtm, deviceId).map((child) => child.device_id)
+      : children.map((child) => child.device_id);
+  for (const id of energyHolders) moduleKwh += capacityOf(id);
   if (siteKwh === 0 || moduleKwh === 0) return {};
 
   // Reason: clamped rather than rejected. The floor resolver throws when its target exceeds rack

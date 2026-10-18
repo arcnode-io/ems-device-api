@@ -469,6 +469,36 @@ describe("per-device capacity_kwh overrides the template's", () => {
   });
 });
 
+describe("resolveReadiness — module-sourced SoC", () => {
+  it("sizes the module's recharge share by its energy-holding children, not the PCS", () => {
+    // Arrange — the bank holds all 8000 kWh of the site; the PCS hold none.
+    const dtm = dtmWithSharedBank();
+    dtm.templates_used.bess_rack!.capacity_kwh = null;
+    (dtm.devices.bank_1 as { capacity_kwh?: number }).capacity_kwh = 8000;
+    dtm.sizing_params.bess_readiness_mwh = 2;
+    dtm.sizing_params.bess_recharge_mw = 0.3;
+    const children = resolveDistributeChildren(
+      dtm,
+      "bess_module_1",
+      "set",
+      "active_power",
+      SHARED_BANK_DISTRIBUTE,
+    );
+
+    // Act
+    const resolved = resolveReadiness(
+      dtm,
+      children,
+      "bess_module_1",
+      SHARED_BANK_DISTRIBUTE,
+    );
+
+    // Assert — 2000 / 8000 kWh = 25 %; the module is the whole site, so the whole rate.
+    assert.equal(resolved.readiness_soc_percent, 25);
+    assert.equal(resolved.recharge_power_w, 300_000);
+  });
+});
+
 describe("resolveDistributeChildren — child_template + state_of_charge_source", () => {
   it("splits across child_template only, every child reading the module's SoC", () => {
     // Arrange
